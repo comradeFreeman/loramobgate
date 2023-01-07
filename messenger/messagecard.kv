@@ -1,0 +1,64 @@
+#:import escape_markup kivy.utils.escape_markup
+
+<MDLabelWithTooltip@MDLabel+MDTooltip>:
+<MessageCardBase>:
+    id: root.id
+    size_hint: root.size_hint_x, None
+    height:  message.texture_size[1] + sp(32)
+    on_release: root.messagecard_callback(self)
+    orientation: "vertical"
+    AnchorLayout:
+        orientation: "vertical"
+        padding: "12dp", "5dp", "10dp", "2dp"
+        pos_hint: {"center_y": .55}
+
+        MDLabel:
+            id: message
+            markup: True
+            text: root.message_header + root.message_content # escape_markup
+            message_content: root.message_content
+            on_ref_press: root.scroll_replied(self)
+            reply_to: root.reply_to
+            forwarded_from: root.forwarded_from
+            messages_scroll: root.messages_scroll
+            msgid: root.id
+
+        MDLabel:
+            id: time
+            text: root.time
+            text_size: self.size
+            font_size: "12sp"
+            valign: 'bottom'
+            halign: "right"
+            #tooltip_text: root.full_date.strftime("%d.%m.%Y %H:%M:%S %Z%z")
+
+
+<MessageCardLeft@MessageCardBase>:
+    pos_hint: {"left": 1}
+    md_bg_color: "#b0a5cf"
+    radius: "20dp", "20dp", "20dp", "5dp"
+
+<MessageCardRight@MessageCardBase>:
+    pos_hint: {"right": 1}
+    md_bg_color: "#d8ed9d"
+    radius: "20dp", "20dp", "5dp", "20dp"
+
+
+#<MessageCardBase>:
+#    size_hint: root.size_hint_x, None
+#    height:  message.texture_size[1] + 35
+#    padding: "15dp", "10dp", "15dp", "10dp"
+#    spacing: "6dp"
+
+#    FloatLayout:
+#        MDLabel:
+#            id: message
+#            text: root.message
+#            pos_hint: {"x": .01, "center_y": .57}
+
+#        MDLabel:
+#            id: time
+#            halign: "right"
+#            text: root.time
+#            font_size: "12sp"
+#            pos_hint: {"center_x": .50, "center_y": .05}
