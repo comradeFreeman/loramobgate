@@ -36,14 +36,20 @@ from kivymd.icon_definitions import md_icons
 from audiostream import get_input
 from time import sleep
 
+#from device.software.loramobgate import Messenger
+
+
+#import usb.core
+
 if platform == "android":
     from android.permissions import request_permissions, Permission
     request_permissions([Permission.WRITE_EXTERNAL_STORAGE,
                          Permission.READ_EXTERNAL_STORAGE,
                          Permission.RECORD_AUDIO,
                          Permission.INTERNET])
+    from usb4a import usb
 else:
-    print("a")
+    import usb
 
 #TODO MDNavigationDrawer p.348
 
@@ -138,7 +144,6 @@ class MessengerRoot(MDScreen):
                                   f"[i]> {messages[messages[j]['reply_to']]['message'][:reply_symbols]}...[/i][/ref]\n\n"
                     elif "forwarded_from" in messages[j]:
                         message_header = f"Forwarded from [b] {messages[j]['forwarded_from']}[/b]\n\n"
-                    #message_content = messages[j]['message']
                     self.ids.messages_container.add_widget(card(
                         message_header = message_header,
                         message_content = messages[j]['message'],
@@ -190,9 +195,8 @@ class MessengerRoot(MDScreen):
         #print(self.message_actions_menu.caller.ids.message.text)
 
     def delete_message(self, caller):
-        if caller.text == "DELETE":
-            self.ids.messages_container.remove_widget(
-                [el for el in self.ids.messages_container.children if el.id == self.message_actions_menu.caller.id][0])
+        if caller.text == "DELETE" and (widgets:= [el for el in self.ids.messages_container.children if el.id == self.message_actions_menu.caller.id]):
+            self.ids.messages_container.remove_widget(widgets[0])
         self.delete_dialog.dismiss()
 
     def chat_actions_callback(self, action, chat):
@@ -262,12 +266,16 @@ class MessageCardLeft(MessageCardBase):
     pass
 class MessageCardRight(MessageCardBase):
     pass
+
+
 class ReplyMessagePane(MDBoxLayout):
     text = StringProperty()
     msgid = StringProperty()
 
+
 class ChatDateHeader(MDBoxLayout):
     text = StringProperty()
+
 
 class RightContentCls(IRightBodyTouch, MDBoxLayout):
     icon = StringProperty()
@@ -320,6 +328,32 @@ class MessengerApp(MDApp):
         print(type(a.right_action_items))
         #caller.icon = "dots-vertical" # менять иконку в зависимости от типа соединения
 
+    def do1(self, caller):
+        #print(usb.core.find())
+        #a = "\n".join(f"{dev.idVendor}:{dev.idProduct}" for dev in usb.core.find())
+        #a = usb.core.find()
+        buffer = bytearray(b'\0'*16)
+        #usb.ByteBuffer.allocate(16)
+        manager = usb.get_usb_manager()
+        usb_device_list = usb.get_usb_device_list()
+        usb_device_name_list = [device.getDeviceName() for device in usb_device_list]
+        if usb_device_name_list:
+            self.root.ids.settings_label1.text = usb_device_list[0].getDeviceName()
+            my_device = usb.get_usb_device(usb_device_list[0].getDeviceName())
+            self.root.ids.settings_label2.text = f"{my_device}"
+            if not usb.has_usb_permission(my_device):
+                usb.request_usb_permission(my_device)
+            else:
+                connection = manager.openDevice(my_device)
+                self.root.ids.settings_label3.text = f"{connection}"
+                received = connection.controlTransfer(64 | 0 | 128, 209, 0, 0, buffer, len(buffer), 5000)
+                self.root.ids.settings_label4.text = f"{received}: {buffer}"
+        else:
+            self.root.ids.settings_label6.text = "No :("
+            #"\n".join(usb_device_name_list)
+            #f"{a.idVendor}:{a.idProduct}"
+
+
     def open_chat(self, caller):
         print(caller.chat)
         self.root.current_chat = caller.chat
@@ -337,4 +371,5 @@ class MessengerApp(MDApp):
 if __name__ == "__main__":
     app = MessengerApp()
     app.run()
+#    messenger = Messenger()
 

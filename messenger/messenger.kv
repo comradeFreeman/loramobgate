@@ -88,10 +88,34 @@ MessengerRoot:
                     id: toolbar_settings
                     title: "Settings"
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen"), "123"]]
+                    right_action_items: [["assets/icons/usual_connections.png", app.do1]]
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        id: settings_label1
+                        text: "settings_label1"
+                        halign: "center"
+                    MDLabel:
+                        id: settings_label2
+                        text: "settings_label2"
+                        halign: "center"
+                    MDLabel:
+                        id: settings_label3
+                        text: "settings_label3"
+                        halign: "center"
+                    MDLabel:
+                        id: settings_label4
+                        text: "settings_label4"
+                        halign: "center"
+                    MDLabel:
+                        id: settings_label5
+                        text: "settings_label5"
+                        halign: "center"
+                    MDLabel:
+                        id: settings_label6
+                        text: "settings_label6"
+                        halign: "center"
 
-                MDLabel:
-                    text: "Screen 2"
-                    halign: "center"
 
             MDScreen:
                 name: "chat_screen"
