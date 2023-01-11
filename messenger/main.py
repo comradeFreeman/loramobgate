@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__) ,"device"))
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -24,7 +27,6 @@ from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.list import OneLineAvatarIconListItem, ImageLeftWidget, IRightBodyTouch
 from kivymd.uix.tooltip import MDTooltip
 from kivymd.uix.bottomsheet import MDListBottomSheet
-import os
 import json
 from itertools import groupby
 from dateutil import parser
@@ -36,8 +38,10 @@ from kivymd.icon_definitions import md_icons
 from audiostream import get_input
 from time import sleep
 
-#from device.software.loramobgate import Messenger
 
+from device.loramobgate import UsbConnection
+
+import usb.util as u
 
 #import usb.core
 
@@ -47,12 +51,9 @@ if platform == "android":
                          Permission.READ_EXTERNAL_STORAGE,
                          Permission.RECORD_AUDIO,
                          Permission.INTERNET])
-    from usb4a import usb
+    import usb4a.usb
 else:
-    import usb
-
-#TODO MDNavigationDrawer p.348
-
+    import usb.core
 
 class MessengerRoot(MDScreen):
     def __init__(self, **kwargs):
@@ -329,20 +330,16 @@ class MessengerApp(MDApp):
         #caller.icon = "dots-vertical" # менять иконку в зависимости от типа соединения
 
     def do1(self, caller):
-        #print(usb.core.find())
-        #a = "\n".join(f"{dev.idVendor}:{dev.idProduct}" for dev in usb.core.find())
-        #a = usb.core.find()
         buffer = bytearray(b'\0'*16)
-        #usb.ByteBuffer.allocate(16)
-        manager = usb.get_usb_manager()
-        usb_device_list = usb.get_usb_device_list()
+        manager = usb4a.usb.get_usb_manager()
+        usb_device_list = usb4a.usb.get_usb_device_list()
         usb_device_name_list = [device.getDeviceName() for device in usb_device_list]
         if usb_device_name_list:
             self.root.ids.settings_label1.text = usb_device_list[0].getDeviceName()
-            my_device = usb.get_usb_device(usb_device_list[0].getDeviceName())
+            my_device = usb4a.usb.get_usb_device(usb_device_list[0].getDeviceName())
             self.root.ids.settings_label2.text = f"{my_device}"
-            if not usb.has_usb_permission(my_device):
-                usb.request_usb_permission(my_device)
+            if not usb4a.usb.has_usb_permission(my_device):
+                usb4a.usb.request_usb_permission(my_device)
             else:
                 connection = manager.openDevice(my_device)
                 self.root.ids.settings_label3.text = f"{connection}"
@@ -350,8 +347,12 @@ class MessengerApp(MDApp):
                 self.root.ids.settings_label4.text = f"{received}: {buffer}"
         else:
             self.root.ids.settings_label6.text = "No :("
-            #"\n".join(usb_device_name_list)
-            #f"{a.idVendor}:{a.idProduct}"
+
+    def do2(self, caller):
+        connection = UsbConnection()
+        if connection:
+            self.root.ids.settings_label1.text = f"{connection.send_to_device(209)}"
+        self.root.ids.settings_label2.text = f"{sys.path}"
 
 
     def open_chat(self, caller):

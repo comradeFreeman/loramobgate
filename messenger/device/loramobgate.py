@@ -1,8 +1,8 @@
 from enum import Enum
 import threading
 from time import sleep
-import usb.core
 import usb.util as u
+#####
 from parse_settings import SettingsParser
 from typing import Union
 import queue
@@ -12,7 +12,6 @@ from math import ceil, log2
 from struct import unpack, pack
 import traceback
 import pickle
-###
 import anytree.cachedsearch
 from anytree import Node, LevelOrderIter, LevelGroupOrderIter
 import threading
@@ -23,13 +22,24 @@ import tinyec.ec as ec
 import tinyec.registry as reg
 from pure_salsa20 import salsa20_xor, xsalsa20_xor
 from os import urandom
-import settings
+#####
+import settings as settings
 import http.client as http_client
 from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
 from models import Message, Content
 from hashlib import sha256
 
-#from usb4a import usb
+from kivy.utils import platform
+
+if platform == "android":
+	from android.permissions import request_permissions, Permission
+	request_permissions([Permission.WRITE_EXTERNAL_STORAGE,
+						 Permission.READ_EXTERNAL_STORAGE,
+						 Permission.RECORD_AUDIO,
+						 Permission.INTERNET])
+	import usb4a.usb
+else:
+	import usb.core
 
 
 
@@ -275,28 +285,31 @@ class Routing:
 	################################### NETWORK
 	def process_network_event(self, packet):
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
-			match packet.content_type:
-				case ContentType.L3NEIGHBORINFO:
+			#match packet.content_type:
+			if packet.content_type == ContentType.L3NEIGHBORINFO:
+				#case ContentType.L3NEIGHBORINFO:
 					# сначала обработать (обновить своё дерево),
 					# а потом уже слать своё!
 					# ни в коем случае не пересылать этот пакет.
-					for record in (try_pickle(packet.raw_data) or []):
-						self.add_neighbor(packet.src_addr, record)
-					return # выходим, чтобы не пересылать дальше
-				# информация о соседях, пускай 10 записей таблицы
-				case ContentType.L3KEYEX:
+				for record in (try_pickle(packet.raw_data) or []):
+					self.add_neighbor(packet.src_addr, record)
+				return # выходим, чтобы не пересылать дальше
+					# информация о соседях, пускай 10 записей таблицы
+			elif packet.content_type == ContentType.L3KEYEX:
+				#case ContentType.L3KEYEX:
 					# опасно. обновляем хранилище ключей на пришедший распарсеный словарь
-					if data:= try_pickle(packet.raw_data):
-						for dev_addr, public_key in data.items():
-							# пускай цикл, чем костыли, чтобы получить из словаря 2 аргумента
-							# ну и на будущее задел, вдруг решу по несколько слать.
-							self._keys.add_key(dev_addr = dev_addr, public_key = public_key)
-				# обработка периодической рассылки ключей/ретрансляция ответов на запросы
-				case ContentType.L3KEYRQ:
-					if value := self._keys.get_pk(int.from_bytes(packet.raw_data, byteorder='little')):
-						packet.swap_addr(from_me = True)
-						packet.content_type = ContentType.L3KEYEX
-						packet.raw_data = pickle.dumps({packet.raw_data: value})
+				if data:= try_pickle(packet.raw_data):
+					for dev_addr, public_key in data.items():
+								# пускай цикл, чем костыли, чтобы получить из словаря 2 аргумента
+								# ну и на будущее задел, вдруг решу по несколько слать.
+						self._keys.add_key(dev_addr = dev_addr, public_key = public_key)
+					# обработка периодической рассылки ключей/ретрансляция ответов на запросы
+			elif packet.content_type == ContentType.L3KEYRQ:
+				#case ContentType.L3KEYRQ:
+				if value := self._keys.get_pk(int.from_bytes(packet.raw_data, byteorder='little')):
+					packet.swap_addr(from_me = True)
+					packet.content_type = ContentType.L3KEYEX
+					packet.raw_data = pickle.dumps({packet.raw_data: value})
 						# сформировать пакет L3KEYEX, в который поместить сериализованный словарь "адрес-ключ"
 			# поменять направление на отправку
 			packet.swap_direction()
@@ -342,42 +355,68 @@ class UsbConnection:
 	def __init__(self, vid=0x16c0, pid=0x5dc):
 		self._vid = vid
 		self._pid = pid
+		self._buffer = bytearray(b'\0'*2048)
 		self._usb = None
 		self.open_device()
 
 	def open_device(self) -> bool:
-		self._usb = usb.core.find(idVendor=self._vid, idProduct=self._pid)
+		if platform == "android":
+			if candidates:= [device for device in usb4a.usb.get_usb_device_list() if
+							 device.getVendorId() == self._vid and device.getProductId() == self._pid]:
+				device = usb4a.usb.get_usb_device(candidates[0].getDeviceName())
+				if not usb4a.usb.has_usb_permission(device):
+					usb4a.usb.request_usb_permission(device)
+					self.open_device()
+				self._usb = usb4a.usb.get_usb_manager().openDevice(device)
+		else:
+			self._usb = usb.core.find(idVendor=self._vid, idProduct=self._pid)
 		return self._usb != None
 
 	# u.ENDPOINT_IN      device to host requests: Mega       -> PC   (e.g. retrieve message from buffer)
 	# u.ENDPOINT_OUT     host to device requests: PC Payload -> Mega (e.g. module command + args)
 
-	def send_to_device(self, command, endp=u.ENDPOINT_IN, wValue=0, wIndex=0, wLengthOrData: Union[int, Iterable] = 2048):
-		retry = 0
-		while retry < 10:
-			try:
-				if self._usb and lock.acquire(True):
-					return self._usb.ctrl_transfer(
-						u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
-						command, wValue, wIndex, wLengthOrData or 2048, 5000)
-				else:
-					raise usb.core.USBError
-			except usb.core.USBError:
-				sleep(5)
-				self.open_device()
-			except Exception:
-				print(traceback.format_exc())
-				return None
-			# TODO log!
-			finally:
-				lock.release()
-				retry +=1
+	def send_to_device(self, command, endp=u.ENDPOINT_IN, wValue=0, wIndex=0, data = None): #wLengthOrData: Union[int, Iterable] = 2048):
+		if self._usb:
+			if platform == "android":
+				res = self._usb.controlTransfer(u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
+												command, wValue, wIndex, data or self._buffer, (data and len(data)) or len(self._buffer), 5000)
+				if endp == u.ENDPOINT_IN:
+					return self._buffer[:res]
+				return res
+			else:
+				return self._usb.ctrl_transfer(
+					u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
+								command, wValue, wIndex, data or 2048, 5000)
+		return -1
+
+		# retry = 0
+		# while retry < 10:
+		# 	try:
+		# 		if self._usb and lock.acquire(True):
+		# 			return self._usb.ctrl_transfer(
+		# 				u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
+		# 				command, wValue, wIndex, wLengthOrData or 2048, 5000)
+		# 		else:
+		# 			raise usb.core.USBError
+		# 	except usb.core.USBError:
+		# 		sleep(5)
+		# 		self.open_device()
+		# 	except Exception:
+		# 		print(traceback.format_exc())
+		# 		return None
+		# 	# TODO log!
+		# 	finally:
+		# 		lock.release()
+		# 		retry +=1
 		#TODO Всё это выглядит по-ебанутому, подумать, как это можно нормально сделать
 	# если передача, то возвращается кол-во записанных байт, если приём - буфер с прочитанными данными
 
 	def __str__(self):
 		if self._usb:
-			return f"{self._usb.manufacturer} {self._usb.product} on {self._usb.bus}.{self._usb.address}"
+			if platform == "android":
+				pass
+			else:
+				return f"{self._usb.manufacturer} {self._usb.product} on {self._usb.bus}.{self._usb.address}"
 		# ещё бы больше технических хар-к, а-ля шины
 		return "Device not initialized or not found!"
 
@@ -621,7 +660,7 @@ class Device:
 			# UsbPacket = Payload!
 			return self._device.send_to_device(command=command,
 											   endp=u.ENDPOINT_OUT if usb_packet else u.ENDPOINT_IN,
-										       wLengthOrData = usb_packet and usb_packet.packet) # usb_packet.packet if usb_packet else None
+											   data=usb_packet and usb_packet.packet) # usb_packet.packet if usb_packet else None
 		return None
 
 	def transmit(self, packet: NetPacket):
@@ -671,21 +710,24 @@ class Device:
 					self._routing.new_transaction_event(packet)
 					# не совсем корректно делать это ДО, а не ПОСЛЕ, но пакет меняется дальше и меняется его хэш
 					if packet.direction == NetPacketDirection.IN: # если это принятый пакет
-						match packet.app_id:
-							case AppID.NETWORK: # события сети
-								self._routing.process_network_event(packet)
+						if packet.app_id == AppID.NETWORK:
+						#match packet.app_id:
+							#case AppID.NETWORK: # события сети
+							self._routing.process_network_event(packet)
 								# TODO отправить этот пакет дальше и не забыть занести в транзакции
-							case AppID.MESSENGER: # события мессенджера
+						elif packet.app_id == AppID.MESSENGER:
+							#case AppID.MESSENGER: # события мессенджера
 								# или всё равно отправляем в месседж_квек, а там уже мессенджер будет периодически
 								# ходить по нерасшифрованным сообщениям и давать запросы на ключ
-								self._messenger_queue.put(packet)
-								if (packet.dst_addr == settings.BROADCAST):
-									copy = packet.duplicate()
-									copy.swap_direction()
-									self._packets_queue.put(copy)
+							self._messenger_queue.put(packet)
+							if (packet.dst_addr == settings.BROADCAST):
+								copy = packet.duplicate()
+								copy.swap_direction()
+								self._packets_queue.put(copy)
 								# приём файлов по фрагментам, их сборка в кучу, пересылка
-							case AppID.LORA: # события ЛоРа
-								pass
+						elif packet.app_id == AppID.LORA:
+							#case AppID.LORA: # события ЛоРа
+							pass
 								# переслать сообщение от ЛоРа девайсов в сеть, если она доступна
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир

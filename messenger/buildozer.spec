@@ -37,7 +37,8 @@ version = 0.3
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,jnius
+# hostpython3==3.10.0,
+requirements = python3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
@@ -113,7 +114,7 @@ android.permissions = INTERNET,RECORD_AUDIO,READ_EXTERNAL_STORAGE
 #android.ndk_api = 21
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
-android.private_storage = True
+#android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
 #android.ndk_path =
@@ -183,7 +184,7 @@ android.private_storage = True
 # Either form may be used, and assets need not be in 'source.include_exts'.
 # 1) android.add_assets = source_asset_relative_path
 # 2) android.add_assets = source_asset_path:destination_asset_relative_path
-android.add_assets = assets/test/data
+android.add_assets = assets/test/data,device
 
 # (list) Put these files or directories in the apk res directory.
 # The option may be used in three ways, the value may contain one or zero ':'
