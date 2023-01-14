@@ -1,10 +1,15 @@
+import pickle
+
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
-	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField
+	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
 from settings import DB_NAME, BROADCAST
 from datetime import datetime, timedelta
 from playhouse.signals import pre_save, Model
 from enum import Enum
 from classes import ContentType, MessageStatus
+from peewee import Field
+from typing import Union
+from hashlib import md5
 
 db = SqliteDatabase(DB_NAME, pragmas={ 'journal_mode': 'wal', 'cache_size': -1024 * 64 })
 
@@ -34,23 +39,98 @@ class EnumField(SmallIntegerField):
 			raise ValueError((f"{self.__class__.__name__} the value must be "
 							  f"member of the enum: {value}, {enum}."))
 
+class DictField(Field):
+	"""
+	MSG Pack in Blob field as Dict
+	"""
+	field_type = 'blob'
+	_dict = {}
+
+	class Dict:
+		def __init__(self, data=None, dct=None):
+			if dct:
+				self.data = dct
+				pass
+			else:
+				self.data: dict = pickle.loads(data) if data else {} # msgpack. , raw=False
+				pass
+			pass
+
+		def __getitem__(self, item):
+			return self.data.get(item, None)
+
+		def __setitem__(self, key, value):
+			self.data[key] = value
+			pass
+
+		def __repr__(self):
+			return f"<DictField, keys: {', '.join(map(str, self.keys()))}>"
+
+		def __iter__(self):
+			return iter(self.data)
+
+		def __delitem__(self, key):
+			del self.data[key]
+
+		def __bool__(self):
+			return bool(self.data)
+
+		def __dict__(self):
+			return self.data
+
+		def dump(self):
+			return pickle.dumps(self.data) #msgpack
+
+		def keys(self):
+			return self.data.keys()
+
+		def items(self):
+			return self.data.items()
+
+		def values(self):
+			return self.data.values()
+
+		def dict(self):
+			return self.data
+		pass
+
+	def db_value(self, value: Union[Dict, dict]):
+		return value.dump() if isinstance(value, self.Dict) else (self.Dict(dct=value)).dump()
+
+	def python_value(self, value):
+		return self.Dict(value)
+	pass
+
+class Chat(Model):
+	id = IntegerField(unique=True, primary_key=True, column_name="chat")
+	display_name = CharField(column_name='display_name', index=True, null=True)
+	participants = DictField(column_name="participants")
+	last_message_id = IntegerField(column_name="last", null=True)
+	unread = IntegerField(column_name="unread", default=0)
+	avatar = CharField(default="assets/icons/anonymus.jpg")
+
+	class Meta:
+		table_name = 'chats'
+		database = db
 
 class Message(Model):
 	alternative_id = CompositeKey('sender', 'recipient', 'date_sent')
 	sender = IntegerField(column_name='sender', index=True, default=BROADCAST)
 	recipient = IntegerField(column_name='recipient', index=True, default=BROADCAST)
-	chat = CharField(column_name='chat', index=True)
-	timestamp_sent = IntegerField(column_name='timestamp_sent_my', default=0, help_text=
-																				"""Числовое поле, в которое последние
-																				2 цифры означают десятки миллисекунд,
-																				а остальные означают секунды, прошедшие 
-																				от начала суток (относительно UTC)""")
-	date_sent = DateTimeField(column_name='date_sent', default=datetime.utcnow())
-	date_received = DateTimeField(column_name='date_received', default=datetime.utcnow())
+	chat = ForeignKeyField(model=Chat, on_delete='CASCADE', backref='messages')
+	#CharField(column_name='chat', index=True)
+	#timestamp_sent = IntegerField(column_name='timestamp_sent', default=0, help_text=
+	#																			"""Числовое поле, в которое последние
+	#																			2 цифры означают десятки миллисекунд,
+	#																			а остальные означают секунды, прошедшие
+	#																			от начала суток (относительно UTC)""")
+	date_sent = DateTimeField(column_name='date_sent', default=datetime.utcnow)
+	date_received = DateTimeField(column_name='date_received', default=datetime.utcnow)
 	status = EnumField(enum=MessageStatus, column_name='status', default=MessageStatus.UNKNOWN)
 	edited = BooleanField(column_name='edited', default=False)
 	reply_to = IntegerField(column_name='reply_to', null=True)
 	forwarded_from = IntegerField(column_name='forwarded_from', null=True)
+	message_hash = CharField(column_name="message_hash")
 	#content_id = IntegerField(column_name='content_id', null=True)
 
 
@@ -62,14 +142,15 @@ class Message(Model):
 @pre_save(sender = Message)
 def fill_message(model_class, message, created):
 	if created:
-		my_timestamp = str(message.timestamp_sent)
-		new_date = datetime.utcnow().replace(hour = 0, minute = 0, second = 0, microsecond = 0)
-		new_date += timedelta(seconds=int(my_timestamp[:-2]), milliseconds=(int(my_timestamp) % 100) * 10)
-		now = datetime.utcnow()
-		if new_date > now:
-			new_date = new_date.replace(day = now.day - 1)
-		message.date_sent = new_date
-		message.chat = f"{message.sender}_{message.recipient}"
+		pass
+		#my_timestamp = str(message.timestamp_sent)
+		#new_date = datetime.utcnow().replace(hour = 0, minute = 0, second = 0, microsecond = 0)
+		#new_date += timedelta(seconds=int(my_timestamp[:-2]), milliseconds=(int(my_timestamp) % 100) * 10)
+		#now = datetime.utcnow()
+		#if new_date > now:
+		#	new_date = new_date.replace(day = now.day - 1)
+		#message.date_sent = new_date
+		#message.chat = f"{message.sender}_{message.recipient}"
 
 class Content(Model):
 	#id = ForeignKeyField(model=Message, field=Message.content_id, primary_key=True, on_delete='CASCADE', backref="content")
@@ -83,5 +164,5 @@ class Content(Model):
 		database = db
 
 db.connect()
-db.create_tables([Message, Content])
+db.create_tables([Message, Content, Chat])
 db.close()

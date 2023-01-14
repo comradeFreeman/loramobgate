@@ -1,5 +1,6 @@
 from enum import Enum
 import threading
+
 from time import sleep
 import usb.util as u
 #####
@@ -56,13 +57,14 @@ def compress_point(point: ec.Point):
 	return str(point.x + point.y % 2 + 461)
 
 
-s = SettingsParser(filepaths=['./settings.h',
-							  '../LoRaRF-Arduino-2.1.1/src/SX126x.h',
-							  '../LoRaRF-Arduino-2.1.1/src/SX126x_API.h',
-							  '../LoRaRF-Arduino-2.1.1/src/SX127x.h',
-							  '../LoRaRF-Arduino-2.1.1/src/BaseLoRa.h',
-							  '../LoRaRF-Arduino-2.1.1/src/SX126x_driver.h'])
+# s = SettingsParser(filepaths=['./settings.h',
+# 							  '../LoRaRF-Arduino-2.1.1/src/SX126x.h',
+# 							  '../LoRaRF-Arduino-2.1.1/src/SX126x_API.h',
+# 							  '../LoRaRF-Arduino-2.1.1/src/SX127x.h',
+# 							  '../LoRaRF-Arduino-2.1.1/src/BaseLoRa.h',
+# 							  '../LoRaRF-Arduino-2.1.1/src/SX126x_driver.h'])
 
+import declarations as s
 
 lock = threading.Lock()
 
@@ -231,6 +233,9 @@ class Routing:
 		self._share_neighbors_thread.start()
 		self._share_pubkey_thread.start()
 
+	def stop(self):
+		self._share_pubkey_thread.cancel()
+		self._share_neighbors_thread.cancel()
 
 	################################### NEIGHBORS
 	def neighbors(self, maxlevel: Union[int, None] = 5, include_root = False) -> list:
@@ -352,7 +357,7 @@ class Routing:
 
 
 class UsbConnection:
-	def __init__(self, vid=0x16c0, pid=0x5dc):
+	def __init__(self, vid=settings.VID, pid=settings.PID):
 		self._vid = vid
 		self._pid = pid
 		self._buffer = bytearray(b'\0'*2048)
@@ -379,7 +384,8 @@ class UsbConnection:
 		if self._usb:
 			if platform == "android":
 				res = self._usb.controlTransfer(u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
-												command, wValue, wIndex, data or self._buffer, (data and len(data)) or len(self._buffer), 5000)
+												command, wValue, wIndex, data or self._buffer,
+												(data and len(data)) or len(self._buffer), 5000)
 				if endp == u.ENDPOINT_IN:
 					return self._buffer[:res]
 				return res
@@ -387,7 +393,14 @@ class UsbConnection:
 				return self._usb.ctrl_transfer(
 					u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
 								command, wValue, wIndex, data or 2048, 5000)
-		return -1
+		return None
+
+	def close_device(self):
+		if self._usb:
+			if platform == "android":
+				self._usb.close()
+			else:
+				u.dispose_resources(self._usb)
 
 		# retry = 0
 		# while retry < 10:
@@ -420,6 +433,8 @@ class UsbConnection:
 		# ещё бы больше технических хар-к, а-ля шины
 		return "Device not initialized or not found!"
 
+	def __bool__(self):
+		return self._usb != None
 
 # TODO Обязательно в случае командных пакетов с Payload нужно чтобы pydst был кратен 8!
 class UsbPacket:  # тут будет формирование и хранение сообщений для/с устройства по формату
@@ -557,7 +572,7 @@ class Keys:
 
 class Device:
 	def __init__(self, messenger_queue: queue.Queue, inet: InternetConnection,
-				 vid=0x16c0, pid=0x5dc, process_delay=10, check_delay=0.8):
+				 vid=settings.VID, pid=settings.PID, process_delay=10, check_delay=0.8):
 		self._device = UsbConnection(vid, pid)
 		self._dev_info, self._dev_addr, _ = self.retrieve_info()
 		#
@@ -591,12 +606,29 @@ class Device:
 	def queue_size(self):
 		return self._packets_queue.qsize()
 
-	def __str__(self):
-		return ""
+	@property
+	def device_available(self):
+		return bool(self._device)
+
+	def reopen_device(self):
+		self._device.open_device()
+
+	def stop(self):
+		# TODO сохранить содержимое очередей. подумать о порядке
+		self._routing.stop()
+		self._check_msg_thread.cancel()
+		self._route_thread.cancel()
+		self._device.close_device()
+
+	def get_key(self, key):
+		return self._keys[key]
+
+	def decrypt(self, src_addr, raw_data):
+		return self._keys.decrypt(src_addr, raw_data)
 
 	def retrieve_info(self):
 		self._device.open_device()
-		dev_addr, lora_sync_word, country = random.getrandbits(32), s.LORA_SYNC_WORD, 804
+		dev_addr, lora_sync_word, country = 0xacde73bf, s.LORA_SYNC_WORD, 804 # random.getrandbits(32)
 		private_key = random.randbytes(28) #, random.randbytes(32)
 		chip = Chip.SX126X
 		try:
@@ -679,6 +711,10 @@ class Device:
 	def get_message(self):
 		return self.send_command(command = s.USB_RADIO_RETRIEVE_MESSAGE) #, endp = u.ENDPOINT_IN)
 
+	def add_packet(self, packet: NetPacket):
+		if isinstance(packet, NetPacket):
+			self._packets_queue.put(packet)
+
 	# при отправке заносить хэш сумму пакета в self._last_transactions и новый ttl
 	# также можно при поступлении уже отправленного пакета отклонять его. но тогда вероятно нужен timestamp
 	def _check_incoming_msg(self):
@@ -748,46 +784,6 @@ class Device:
 		except Exception:
 			print(traceback.format_exc())
 
-
-class Messenger:
-	def __init__(self, process_delay=5):
-		self._messenger_queue = queue.Queue()
-		self._process_delay = process_delay
-		self._inet = InternetConnection()
-		self._device = Device(messenger_queue = self._messenger_queue, inet = self._inet)
-		self._check_msg_thread = RepeatTimer(self._process_delay, self._process_messages)
-		self._check_msg_thread.start()
-
-	def _process_messages(self):
-		try:
-			while not self._messenger_queue.empty():
-				packet: NetPacket = self._messenger_queue.get()
-				#if packet.dst_addr == settings.BROADCAST:
-				#	pass
-				# TODO А что если сделать два подтипа пакета сообщения: который получен из Лоры и который получен из сети
-				# Тогда в последнем случае можно было бы добавить дополнительную информацию (время отправки или "ответ_на")
-				# Хотя это усложняет пакет, причём очень сильно
-				if session_key := self._device._keys[packet.src_addr]:
-					decrypted = self._device._keys.decrypt(packet.src_addr, packet.raw_data)
-					flags = decrypted[3]
-					m = Message.create(sender = packet.src_addr,
-								   	   recipient = packet.dst_addr,
-									   timestamp_sent = int.from_bytes(decrypted[:3], byteorder='big'),
-									   forwarded_from = decrypted[3:7] if flags & 4 else 0)
-					c = Content.create(message = m,
-									   content_type = packet.content_type,
-									   content = decrypted[(3 + flags & 4):]) # TODO?
-					m.save()
-					c.save()
-				else: # если мы отправителя/получателя не знаем, то выше отправлен сразу запрос ключа, а этот пакет складываем в конец
-					self._messenger_queue.put(packet)
-
-		except Exception:
-			print(traceback.format_exc())
-
-	def message_parse(self, packet: NetPacket):
-		pass
-
 """
 
 	Message:
@@ -799,7 +795,6 @@ class Messenger:
 		*date_sent
 		*date_received
 		*status (on_change -> generate MESSAGE_READ event)
-		//reply_to (id)
 		forwarded_from (src_addr)
 		*content_id
 		
@@ -807,8 +802,9 @@ class Messenger:
 	|      3 bytes      |  1 byte  |    4 bytes     |         |
 
 	flags: 
-	internet x x x x forwarded x x
-	 2 ** 7			   2 ** 2
+			bit #     7 6 5    4     3     2     1    0
+			value      		  2**4        2**2       2**0
+			meaning	  x x x reply_to x forwarded x internet
 		
 	Content:
 		*id

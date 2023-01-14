@@ -70,7 +70,7 @@ MessengerRoot:
                     MyMDTopAppBar:
                         id: toolbar_messenger
                         title: "LoRa Messenger"
-                        left_action_items: [["menu", lambda x: nav_drawer.set_state("open"), "Navigation"]]
+                        left_action_items: [["menu", lambda x: nav_drawer.set_state("open")]]
                         right_action_items: [["assets/icons/usual_connections.png", app.do], ["assets/icons/lora_network.png", app.do], ["magnify", lambda x: nav_drawer.set_state("open")]]
                     MDBoxLayout:
                         orientation: 'vertical'
@@ -87,8 +87,8 @@ MessengerRoot:
                 MyMDTopAppBar:
                     id: toolbar_settings
                     title: "Settings"
-                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen"), "123"]]
-                    right_action_items: [["assets/icons/usual_connections.png", app.do1], ["assets/icons/usual_connections.png", app.do2]]
+                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
+                    right_action_items: [["assets/icons/usual_connections.png", app.do2]]
                 MDBoxLayout:
                     orientation: "vertical"
                     MDLabel:
@@ -127,8 +127,8 @@ MessengerRoot:
                     orientation: "vertical"
                     MyMDTopAppBar:
                         id: toolbar_chat
-                        left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen"), "Return to main screen"]]
-                        right_action_items: [["arrow-down", lambda x: setattr(messages_scroll, "scroll_y", "0")], ["dots-vertical", root.chat_actions_menu_callback, "Chat options"]]
+                        left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
+                        right_action_items: [["arrow-down", lambda x: setattr(messages_scroll, "scroll_y", "0")], ["dots-vertical", root.chat_actions_menu_callback]]
                         title: str(root.current_chat)
 
                     MDBoxLayout:

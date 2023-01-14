@@ -50,11 +50,12 @@
                     pos_hint: {"center_y": .4}
 
                 MDLabel:
+                    id: unread_label
                     text: str(root.unread)
                     text_size: self.size
                     halign: "center"
                     valign: "center"
-                    width: f"{len(str(root.unread))*13 + 6}dp"
+                    width: f"{len(str(root.unread))*13 + 6}dp" if root.unread else "0dp"
                     size_hint_x: None
                     md_bg_color: 64/255, 165/255, 224/255, 1
                     theme_text_color: "Custom" # Secondary
