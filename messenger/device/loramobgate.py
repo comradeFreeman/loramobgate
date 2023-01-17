@@ -17,7 +17,7 @@ import anytree.cachedsearch
 from anytree import Node, LevelOrderIter, LevelGroupOrderIter
 import threading
 
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 ###
 import tinyec.ec as ec
 import tinyec.registry as reg
@@ -185,16 +185,16 @@ class NetPacket:
 	# проверяет, что пакет, созданный из набора байт, является валидным. Грубый способ отделить LoRa
 
 	@property
-	def packet(self) -> list:
+	def packet(self):# -> list:
 		if self.is_valid:
 			# если мы успешно спарсили пакет и это пакет нашего формата
 			self.update()
-			return list(self._packet)
+			return self._packet
 		elif self.source_packet:
 			# иначе отдаём то, что пришло изначально пришло на вход
-			return list(self.source_packet)
+			return self.source_packet
 		else:
-			return []
+			return bytes() #[]
 
 
 	@property
@@ -234,9 +234,11 @@ class Routing:
 		self._share_pubkey_thread.start()
 
 	def stop(self):
+		print("6")
 		self._share_pubkey_thread.cancel()
+		print("7")
 		self._share_neighbors_thread.cancel()
-
+		print("8")
 	################################### NEIGHBORS
 	def neighbors(self, maxlevel: Union[int, None] = 5, include_root = False) -> list:
 		return [ node.name for node in LevelOrderIter(self._root_node, maxlevel = maxlevel) ][int(not include_root):]
@@ -402,35 +404,13 @@ class UsbConnection:
 			else:
 				u.dispose_resources(self._usb)
 
-		# retry = 0
-		# while retry < 10:
-		# 	try:
-		# 		if self._usb and lock.acquire(True):
-		# 			return self._usb.ctrl_transfer(
-		# 				u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
-		# 				command, wValue, wIndex, wLengthOrData or 2048, 5000)
-		# 		else:
-		# 			raise usb.core.USBError
-		# 	except usb.core.USBError:
-		# 		sleep(5)
-		# 		self.open_device()
-		# 	except Exception:
-		# 		print(traceback.format_exc())
-		# 		return None
-		# 	# TODO log!
-		# 	finally:
-		# 		lock.release()
-		# 		retry +=1
-		#TODO Всё это выглядит по-ебанутому, подумать, как это можно нормально сделать
-	# если передача, то возвращается кол-во записанных байт, если приём - буфер с прочитанными данными
-
 	def __str__(self):
 		if self._usb:
 			if platform == "android":
 				pass
 			else:
 				return f"{self._usb.manufacturer} {self._usb.product} on {self._usb.bus}.{self._usb.address}"
-		# ещё бы больше технических хар-к, а-ля шины
+		# TODO ещё бы больше технических хар-к, а-ля шины
 		return "Device not initialized or not found!"
 
 	def __bool__(self):
@@ -455,7 +435,7 @@ class UsbPacket:  # тут будет формирование и хранени
 		# возможно, надо через match-case детальнее разобраться с типом source_packet
 
 		# если это уже готовый пакет и его можно распарсить
-		if source_packet and (isinstance(source_packet, list) or isinstance(source_packet, u.array.array)):
+		if source_packet and isinstance(source_packet, Iterable): #(isinstance(source_packet, list) or isinstance(source_packet, u.array.array)):
 			self.opcode = source_packet[s.OPCI]
 			if self.opcode >= 200:  # если это опкод пакета на приём (т.е. без арг)
 				self.pydc = unpack("<H", bytes(source_packet[s.RET_PYDC:s.RET_PYDC + 2]))[0]
@@ -470,9 +450,9 @@ class UsbPacket:  # тут будет формирование и хранени
 		return sum([p[1] for p in self.args])
 
 	@property
-	def packet(self) -> list:
+	def packet(self):# -> list:
 		self.update()
-		return list(self._packet)
+		return self._packet
 
 	@property
 	def is_default(self) -> bool:
@@ -615,16 +595,25 @@ class Device:
 
 	def stop(self):
 		# TODO сохранить содержимое очередей. подумать о порядке
+		print("4")
 		self._routing.stop()
+		print("888")
 		self._check_msg_thread.cancel()
+		print("9")
 		self._route_thread.cancel()
+		print("10")
 		self._device.close_device()
+		print("11")
 
 	def get_key(self, key):
 		return self._keys[key]
 
+	def encrypt(self, dst_addr, raw_data):
+		return self._keys.decrypt(dst_addr, raw_data)
+
 	def decrypt(self, src_addr, raw_data):
 		return self._keys.decrypt(src_addr, raw_data)
+
 
 	def retrieve_info(self):
 		self._device.open_device()
@@ -681,7 +670,7 @@ class Device:
         the data payload to send_to_device, and it must be a sequence type convertible
         to an array object. In this case, the return value is the number
         of bytes written in the data payload. For device to host requests
-        (IN), data_or_wLength is either the wLength parameter of the control
+        (IN), data_or_wLength is either the wLength parameter of thsdfdsfsfsdfsdfsddfsfe control
         request specifying the number of bytes to read in data payload, and
         the return value is an array object with data read, or an array
         object which the data will be read to, and the return value is the
@@ -695,7 +684,7 @@ class Device:
 											   data=usb_packet and usb_packet.packet) # usb_packet.packet if usb_packet else None
 		return None
 
-	def transmit(self, packet: NetPacket):
+	def transmit_data(self, packet: NetPacket):
 		#  write() method must be placed between beginPacket() and endPacket()
 		#  в прошивке при вызове write() они автоматически вызываются
 		bytes_sent = self.send_command(usb_packet = UsbPacket(
@@ -708,7 +697,7 @@ class Device:
 		self.send_command(usb_packet = UsbPacket(opcode = s.M_REQUEST, argc = 2, args = [[s.SX126X_RX_CONTINUOUS, 4], [True, 1]]))
 		return bytes_sent
 
-	def get_message(self):
+	def get_data(self):
 		return self.send_command(command = s.USB_RADIO_RETRIEVE_MESSAGE) #, endp = u.ENDPOINT_IN)
 
 	def add_packet(self, packet: NetPacket):
@@ -719,27 +708,27 @@ class Device:
 	# также можно при поступлении уже отправленного пакета отклонять его. но тогда вероятно нужен timestamp
 	def _check_incoming_msg(self):
 		try:
-			if msg := self.get_message():
-				if NetPacket(source_packet = msg).is_valid: # если мой формат
-					self._packets_queue.put(NetPacket(source_packet = msg))
+			if packet := self.get_data():
+				if NetPacket(source_packet = packet).is_valid: # если мой формат
+					self._packets_queue.put(NetPacket(source_packet = packet))
 				else:       							   # если это LoRa
 					self._packets_queue.put(NetPacket(
 						src_addr = self._dev_addr,
 						app_id = AppID.LORA,
 						content_type = ContentType.LORA,
-						raw_data = msg
+						raw_data = packet
 					))
 				# TODO подумать, как правильно обработать ЛОРУ и обычный пакет по формату
 				# Придумал.
 				# Если спарсили и не валид, то это - Лора, помещаем её опять в Нетпакет,
 				# но уже в качестве полезной нагрузки
-				print_with_date("check: " + str(msg))
+				print_with_date("check: " + str(packet))
 		except Exception:
 			print(traceback.format_exc())
 
 	def _route_net_packets(self):  # возможно переделать в повторяемый поток через Х время
 		try:
-			while not self._packets_queue.empty():
+			while not self._packets_queue.empty(): # and self.device_available:
 				packet: NetPacket = self._packets_queue.get() # если это не отправленный нами вернувшийся пакет
 				if not self._routing.is_recent(packet):
 					# запомнили на время, что мы что-то приняли или отправили
@@ -768,7 +757,7 @@ class Device:
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
 						if self.force_radio or not self._inet.available:
-							self.transmit(packet)
+							self.transmit_data(packet)
 						else:
 							pass
 					# # запомнили на время, что мы что-то приняли или отправили

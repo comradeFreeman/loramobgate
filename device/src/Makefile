@@ -6,7 +6,8 @@
 
 ### PROJECT_DIR
 ### This is the path to where you have created/cloned your project
-PROJECT_DIR       = /media/amnesia/Data/labs/diplom/loramobgate/device/firmware/src
+PROJECT_DIR       = .
+#/media/amnesia/Data/labs/diplom/loramobgate/device/src
 
 ### ARDMK_DIR
 ### Path to the Arduino-Makefile directory.
@@ -72,7 +73,7 @@ CXXFLAGS         += -pedantic -Wall -Wextra
 
 ### MONITOR_PORT
 ### The port your board is connected to. Using an '*' tries all the ports and finds the right one.
-MONITOR_PORT      = /dev/ttyUSB0
+#MONITOR_PORT      = /dev/ttyUSB0
 
 ### CURRENT_DIR
 ### Do not touch - used for binaries path

@@ -3,13 +3,23 @@ import pickle
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
 from settings import DB_NAME, BROADCAST
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from playhouse.signals import pre_save, Model
 from enum import Enum
 from classes import ContentType, MessageStatus
 from peewee import Field
 from typing import Union
 from hashlib import md5
+from kivy.utils import platform
+
+#from zoneinfo import ZoneInfo
+#utc = #ZoneInfo('UTC')
+
+#if platform == "android":
+localtz = datetime.now().astimezone().tzinfo
+#else:
+#	import usb.core
+#	localtz = ZoneInfo('localtime')
 
 db = SqliteDatabase(DB_NAME, pragmas={ 'journal_mode': 'wal', 'cache_size': -1024 * 64 })
 
@@ -38,6 +48,23 @@ class EnumField(SmallIntegerField):
 		if value not in enum:
 			raise ValueError((f"{self.__class__.__name__} the value must be "
 							  f"member of the enum: {value}, {enum}."))
+
+
+class TimestampTzField(Field):
+	"""
+	A timestamp field that supports a timezone by serializing the value
+	with isoformat.
+	"""
+
+	field_type = "TEXT"
+
+	def db_value(self, value: datetime) -> str:
+		if value:
+			return value.replace(tzinfo=timezone.utc).isoformat()
+
+	def python_value(self, value: str) -> datetime:
+		if value:
+			return datetime.fromisoformat(value).astimezone(localtz)
 
 class DictField(Field):
 	"""
@@ -101,6 +128,7 @@ class DictField(Field):
 		return self.Dict(value)
 	pass
 
+
 class Chat(Model):
 	id = IntegerField(unique=True, primary_key=True, column_name="chat")
 	display_name = CharField(column_name='display_name', index=True, null=True)
@@ -124,8 +152,8 @@ class Message(Model):
 	#																			2 цифры означают десятки миллисекунд,
 	#																			а остальные означают секунды, прошедшие
 	#																			от начала суток (относительно UTC)""")
-	date_sent = DateTimeField(column_name='date_sent', default=datetime.utcnow)
-	date_received = DateTimeField(column_name='date_received', default=datetime.utcnow)
+	date_sent = TimestampTzField(column_name='date_sent', default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
+	date_received = TimestampTzField(column_name='date_received', default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
 	status = EnumField(enum=MessageStatus, column_name='status', default=MessageStatus.UNKNOWN)
 	edited = BooleanField(column_name='edited', default=False)
 	reply_to = IntegerField(column_name='reply_to', null=True)
@@ -135,7 +163,6 @@ class Message(Model):
 
 
 	class Meta:
-		#primary_key = CompositeKey('sender', 'recipient', 'date_sent')
 		table_name = 'messages'
 		database = db
 

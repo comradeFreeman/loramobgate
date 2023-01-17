@@ -13,7 +13,7 @@ package.domain = org.aelita
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,json
+source.include_exts = py,png,jpg,kv,atlas,json,db
 
 # (list) List of inclusions using pattern matching
 #source.include_patterns = assets/*,images/*.png
@@ -38,7 +38,7 @@ version = 0.4
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
 # hostpython3==3.10.0,
-requirements = python3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,msgpack
+requirements = sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy

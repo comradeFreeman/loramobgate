@@ -52,7 +52,8 @@
     height: 2*content.texture_size[1]
     MDLabel:
         id: content
-        text: root.text
+        date: root.date
+        text: root.date.strftime("%a, %d %b")
         halign: "center"
         pos_hint: {"center_y": .5}
 
@@ -120,6 +121,7 @@ MessengerRoot:
             MDScreen:
                 name: "chat_screen"
                 current_chat: root.current_chat
+                current_page: root.current_page
                 on_pre_enter: root.load_messages(self)
                 on_leave: input_field.text = ""
 
@@ -128,7 +130,7 @@ MessengerRoot:
                     MyMDTopAppBar:
                         id: toolbar_chat
                         left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
-                        right_action_items: [["arrow-down", lambda x: setattr(messages_scroll, "scroll_y", "0")], ["dots-vertical", root.chat_actions_menu_callback]]
+                        right_action_items: [["arrow-down", root.scroll_bottom], ["dots-vertical", root.chat_actions_menu_callback]] #lambda x: setattr(messages_scroll, "scroll_y", "0")
                         title: str(root.current_chat)
 
                     MDBoxLayout:
@@ -137,6 +139,7 @@ MessengerRoot:
                         ScrollView:
                             id: messages_scroll
                             scroll_y: 0
+                            on_touch_move: sum(self.vbar) == 1.0 and root.load_messages(self) #root.do3(self)
                             MDBoxLayout:
                                 id: messages_container
                                 orientation: 'vertical'
@@ -174,6 +177,36 @@ MessengerRoot:
                             pos_hint: {"center_y": .5}
                             on_release: root.send()
 
+            MDScreen:
+                name: "new_chat_screen"
+                MyMDTopAppBar:
+                    id: toolbar_settings
+                    title: "Settings"
+                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
+
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "settings_label1"
+                        halign: "center"
+
+                    MDTextField:
+                        id: new_chat_id
+                        mode: "round"
+                        #do_wrap: False
+                        #multiline: True
+                        pos_hint: { "center_y": .45 }
+                        text_color_normal: "black"
+                        text_color_focus: "black"
+                        #on_text: setattr(send_message, "icon", "send") if self.text else setattr(send_message, "icon", "microphone-plus") #root.on_text(self.text)
+
+                    MDIconButton:
+                        id: send_message
+                        icon: "arrow-right"
+                        pos_hint: {"center_y": .5}
+                        icon_size: "48sp"
+                        md_bg_color: "green"
+                        on_release: root.new_chat(self)
 
     MDNavigationDrawer:
         id: nav_drawer
@@ -195,4 +228,8 @@ MessengerRoot:
                 icon: "assets/icons/settings-icon.png"
                 text: "Settings"
                 on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
+            MDNavigationDrawerItem:
+                icon: "message-plus"
+                text: "New chat"
+                on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "new_chat_screen")
             MDNavigationDrawerDivider:
