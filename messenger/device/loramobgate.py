@@ -143,10 +143,10 @@ class NetPacket:
 		self.direction = kwargs.get('direction', NetPacketDirection.IN)
 
 		if source_packet and isinstance(source_packet, Iterable):
-			self.src_addr, self.dst_addr, _, self.app_id, self.pydc, self.content_type = \
-				unpack("<2I4B", bytes(source_packet[:12]))
-			self.fragm_c, self.fragment, self.app_id = _ >> 4, _ & 0xf, AppID(self.app_id)
-			self.raw_data = bytes(source_packet[12:12 + self.pydc])
+			self.src_addr, self.dst_addr, self.fragm_c, self.fragment, self.app_id, self.pydc, self.content_type = \
+				unpack("<2I5B", bytes(source_packet[:13]))
+			#self.fragm_c, self.fragment, self.app_id = _ >> 4, _ & 0xf, AppID(self.app_id)
+			self.raw_data = bytes(source_packet[13:13 + self.pydc])
 			self.update()
 
 	def __str__(self) -> str:
@@ -203,7 +203,7 @@ class NetPacket:
 
 
 	def update(self):
-		self._packet = bytearray(pack(f"<2I4B", self.src_addr, self.dst_addr, (self.fragm_c << 4) + self.fragment,
+		self._packet = bytearray(pack(f"<2I5B", self.src_addr, self.dst_addr, self.fragm_c, self.fragment,
 									  self.app_id.value, self.pydc, self.content_type.value))
 		self._packet.extend(self.raw_data) # encrypted_data
 
@@ -383,19 +383,34 @@ class UsbConnection:
 	# u.ENDPOINT_OUT     host to device requests: PC Payload -> Mega (e.g. module command + args)
 
 	def send_to_device(self, command, endp=u.ENDPOINT_IN, wValue=0, wIndex=0, data = None): #wLengthOrData: Union[int, Iterable] = 2048):
-		if self._usb:
-			if platform == "android":
-				res = self._usb.controlTransfer(u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
-												command, wValue, wIndex, data or self._buffer,
-												(data and len(data)) or len(self._buffer), 5000)
-				if endp == u.ENDPOINT_IN:
-					return self._buffer[:res]
-				return res
-			else:
-				return self._usb.ctrl_transfer(
-					u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
-								command, wValue, wIndex, data or 2048, 5000)
-		return None
+		retry = 0
+		while retry < 10:
+			try:
+				if self._usb and lock.acquire(True):
+					if platform == "android":
+						res = self._usb.controlTransfer(u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
+														command, wValue, wIndex, data or self._buffer,
+														(data and len(data)) or len(self._buffer), 5000)
+						if endp == u.ENDPOINT_IN:
+							return self._buffer[:res]
+						return res
+					else:
+						return self._usb.ctrl_transfer(
+							u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
+										command, wValue, wIndex, data or 2048, 5000)
+				else:
+					raise usb.core.USBError
+			except usb.core.USBError:
+				sleep(1)
+				self.open_device()
+			except:
+				print(traceback.format_exc())
+				return None
+			finally:
+				if lock.locked():
+					lock.release()
+				retry += 1
+
 
 	def close_device(self):
 		if self._usb:
@@ -757,7 +772,10 @@ class Device:
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
 						if self.force_radio or not self._inet.available:
-							self.transmit_data(packet)
+							print("Route ", packet.packet)
+							if not self.transmit_data(packet):
+								self._packets_queue.put(packet)
+							sleep(.5)
 						else:
 							pass
 					# # запомнили на время, что мы что-то приняли или отправили
@@ -787,10 +805,13 @@ class Device:
 		forwarded_from (src_addr)
 		*content_id
 		
-	| my_timestamp_sent |  flags   | forwarded_from | content |
-	|      3 bytes      |  1 byte  |    4 bytes     |         |
+	identification -> forwarded_from, reply_to, msg_hash of previous fragment
 
-	flags: 
+	| my_timestamp_sent |  flags   |   identification   | content |
+	|      3 bytes      |  1 byte  |     4/16 bytes     |         |
+	
+
+	flags:
 			bit #     7 6 5    4     3     2     1    0
 			value      		  2**4        2**2       2**0
 			meaning	  x x x reply_to x forwarded x internet
@@ -803,4 +824,12 @@ class Device:
 	
 	
 	*- это то, что создаётся программно
+		
+	Как передать длинное сообщение?
+	Сначала фрагментируем текст по Х байт, формируем Н сетевых пакетов с соотв. fragm и fragmC.
+	В обработчике если видим фрагментацию, то сразу делаем ready = False.
+	Когда приняли один из таких фрагментов, то смотрим на его поле identification - в данном случае там будет содержаться
+	хэш предыдущего фрагмента. Признаком того, что это фрагменты одного и того же сообщения будет один и тот же timestamp.
+	
+	
 """

@@ -117,66 +117,6 @@ MessengerRoot:
                         text: "settings_label6"
                         halign: "center"
 
-
-            MDScreen:
-                name: "chat_screen"
-                current_chat: root.current_chat
-                current_page: root.current_page
-                on_pre_enter: root.load_messages(self)
-                on_leave: input_field.text = ""
-
-                MDBoxLayout:
-                    orientation: "vertical"
-                    MyMDTopAppBar:
-                        id: toolbar_chat
-                        left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
-                        right_action_items: [["arrow-down", root.scroll_bottom], ["dots-vertical", root.chat_actions_menu_callback]] #lambda x: setattr(messages_scroll, "scroll_y", "0")
-                        title: str(root.current_chat)
-
-                    MDBoxLayout:
-                        id: chat_area
-                        orientation: 'vertical'
-                        ScrollView:
-                            id: messages_scroll
-                            scroll_y: 0
-                            on_touch_move: sum(self.vbar) == 1.0 and root.load_messages(self) #root.do3(self)
-                            MDBoxLayout:
-                                id: messages_container
-                                orientation: 'vertical'
-                                padding: "10dp", "6dp", "10dp", "10dp"
-                                spacing: "8dp"
-                                adaptive_height: True
-
-
-
-                    MDBoxLayout:
-                        spacing: "3dp"
-                        size_hint_y: .1
-                        id: input_panel
-
-                        MDIconButton:
-                            icon: "sticker-emoji"
-                            pos_hint: {"center_y": .5}
-                        MDTextField:
-                            id: input_field
-                            mode: "round"
-                            #do_wrap: False
-                            #multiline: True
-                            pos_hint: {"center_y": .45}
-                            text_color_normal: "black"
-                            text_color_focus: "black"
-                            on_text: setattr(send_message, "icon", "send") if self.text else setattr(send_message, "icon", "microphone-plus") #root.on_text(self.text)
-#                        MDIconButton:
-#                            id: attachment
-#                            icon: "attachment"
-#                            pos_hint: { "center_y": .5 }
-#                            on_release: app.add_attachment()
-                        MDIconButton:
-                            id: send_message
-                            icon: "microphone-plus"
-                            pos_hint: {"center_y": .5}
-                            on_release: root.send()
-
             MDScreen:
                 name: "new_chat_screen"
                 MyMDTopAppBar:
@@ -207,6 +147,64 @@ MessengerRoot:
                         icon_size: "48sp"
                         md_bg_color: "green"
                         on_release: root.new_chat(self)
+            MDScreen:
+                name: "chat_screen"
+                current_chat: root.current_chat
+                current_page: root.current_page
+                on_pre_enter: root.load_messages(self)
+                on_leave: input_field.text = ""
+
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MyMDTopAppBar:
+                        id: toolbar_chat
+                        left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
+                        right_action_items: [["arrow-down", root.scroll_bottom], ["dots-vertical", root.chat_actions_menu_callback]] #lambda x: setattr(messages_scroll, "scroll_y", "0")
+                        title: str(root.current_chat)
+
+                    MDBoxLayout:
+                        id: chat_area
+                        orientation: 'vertical'
+                        ScrollView:
+                            id: messages_scroll
+                            scroll_y: 0
+                            on_touch_move: sum(self.vbar) == 1.0 and root.load_messages(self) #root.do3(self)
+                            MDBoxLayout:
+                                id: messages_container
+                                orientation: 'vertical'
+                                padding: "10dp", "6dp", "10dp", "10dp"
+                                spacing: "8dp"
+                                adaptive_height: True
+
+                    MDBoxLayout:
+                        spacing: "3dp"
+                        size_hint_y: .1
+                        id: input_panel
+
+                        MDIconButton:
+                            icon: "sticker-emoji"
+                            pos_hint: {"center_y": .5}
+                        MDTextField:
+                            id: input_field
+                            mode: "round"
+                            #do_wrap: False
+                            #multiline: True
+                            pos_hint: {"center_y": .45}
+                            text_color_normal: "black"
+                            text_color_focus: "black"
+                            on_text: setattr(send_message, "icon", "send") if self.text else setattr(send_message, "icon", "microphone-plus") #root.on_text(self.text)
+#                        MDIconButton:
+#                            id: attachment
+#                            icon: "attachment"
+#                            pos_hint: { "center_y": .5 }
+#                            on_release: app.add_attachment()
+                        MDIconButton:
+                            id: send_message
+                            icon: "microphone-plus"
+                            pos_hint: {"center_y": .5}
+                            on_release: root.send()
+
+
 
     MDNavigationDrawer:
         id: nav_drawer

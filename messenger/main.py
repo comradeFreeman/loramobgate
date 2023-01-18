@@ -1,6 +1,5 @@
 import sys
 import os
-import tkinter.font
 import traceback
 sys.path.insert(0, os.path.join(os.path.dirname(__file__) ,"device"))
 import settings
@@ -35,7 +34,7 @@ from typing import Iterable
 
 
 from loramobgate import UsbConnection, Device, InternetConnection, NetPacket, RepeatTimer
-from models import Message, Content, Chat
+from models import Message, Content, Chat, db
 from classes import ContentType, AppID, NetPacketDirection
 
 import usb.util as u
@@ -43,6 +42,7 @@ import declarations as s
 
 import queue
 from hashlib import md5
+from math import ceil
 
 #from zoneinfo import ZoneInfo
 #utc = ZoneInfo('UTC')
@@ -72,6 +72,7 @@ class MessagePacket:  # тут будет формирование и хране
         self.reply_to = kwargs.get('reply_to', bytes())
         self.forwarded_from = kwargs.get('forwarded_from', 0)
         self.content = kwargs.get('content', "")
+        self.fragmentation = kwargs.get('fragmentation', False)
 
         # если это уже готовый пакет и его можно распарсить
         if source_packet and len(source_packet) >= 4 and isinstance(source_packet, Union[bytes, bytearray]):
@@ -81,6 +82,8 @@ class MessagePacket:  # тут будет формирование и хране
             self.forwarded_from = int.from_bytes(source_packet[4:4 + (self.flags & 4)], byteorder="little")
             self.content = source_packet[(4 + (self.flags & 4) + (self.flags & 16)):].decode('utf-8')
             self.date = self.convert_my_timestamp(source_packet[:3])
+            self.fragmentation = True if len(source_packet) > 100 else False
+
 
         if not self.timestamp:
             self.timestamp = self.convert_my_timestamp(self.date)
@@ -91,6 +94,10 @@ class MessagePacket:  # тут будет формирование и хране
     def packet(self):# -> list:
         self.update()
         return self._packet
+
+    @property
+    def fragmentation_needed(self):
+        return self.fragmentation
 
     def __str__(self) -> str:
         return ".".join([str(el) for el in self.packet])
@@ -119,6 +126,8 @@ class MessagePacket:  # тут будет формирование и хране
             self.reply_to = bytes()
             self._packet.extend(self.forwarded_from.to_bytes(4, byteorder="little"))
         self._packet.extend(self.content.encode('utf-8'))
+        if len(self._packet) > 100:
+            self.fragmentation = True
 
     @classmethod
     def convert_my_timestamp(cls, obj: Union[datetime, int]):
@@ -204,7 +213,6 @@ class MessengerRoot(MDScreen):
     def load_messages(self, caller, page=1, count=10):
         print("load")
         current_chat = self.ids.screen_manager.get_screen("chat_screen").current_chat
-        print(type(current_chat), current_chat)
         chat = Chat.get_or_create(id = current_chat,
                                   defaults={"participants": {self.dev_addr: self.dev_addr,
                                                              current_chat: current_chat},
@@ -240,27 +248,29 @@ class MessengerRoot(MDScreen):
 
     def draw_message(self, message: Message, pos = -1):
         message_header = ""
-        message_content = message.content.get().content.decode('utf-8')
-        card = MessageCardRight if message.sender == self.dev_addr else MessageCardLeft
-        preferred_factor, reply_symbols = self.calc_width(len(message_content))
-        if r:= message.reply_to:
-            message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" \
-                             f"[i]> {Message.get(Message.id == r).content.get().content.decode('utf-8')[:reply_symbols]}...[/i][/ref]\n\n"
-        elif f:= message.forwarded_from:
-            message_header = f"Forwarded from [b] {f}[/b]\n\n"
-        #message.date_received = message.date_received.astimezone(localtz))
-        self.ids.messages_container.add_widget(card(
-            message_header = message_header,
-            message_content = message_content,
-            #time = (message.date_received.astimezone(localtz)).strftime("%H:%M"),
-            full_date = (message.date_received.astimezone(localtz)),
-            size_hint_x = preferred_factor,
-            message_actions_menu = self.message_actions_menu,
-            reply_to = message.reply_to,
-            forwarded_from = message.forwarded_from,
-            messages_scroll = self.ids.messages_scroll,
-            id = message.id
-        ), pos)
+        message_content_obj = message.content.get()
+        if message_content_obj.ready:
+            message_content = message_content_obj.content.decode('utf-8')
+            card = MessageCardRight if message.sender == self.dev_addr else MessageCardLeft
+            preferred_factor, reply_symbols = self.calc_width(len(message_content))
+            if r:= message.reply_to:
+                message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" \
+                                 f"[i]> {Message.get(Message.id == r).content.get().content.decode('utf-8')[:reply_symbols]}...[/i][/ref]\n\n"
+            elif f:= message.forwarded_from:
+                message_header = f"Forwarded from [b] {f}[/b]\n\n"
+            #message.date_received = message.date_received.astimezone(localtz))
+            self.ids.messages_container.add_widget(card(
+                message_header = message_header,
+                message_content = message_content,
+                #time = (message.date_received.astimezone(localtz)).strftime("%H:%M"),
+                full_date = (message.date_received.astimezone(localtz)),
+                size_hint_x = preferred_factor,
+                message_actions_menu = self.message_actions_menu,
+                reply_to = message.reply_to,
+                forwarded_from = message.forwarded_from,
+                messages_scroll = self.ids.messages_scroll,
+                id = message.id
+            ), pos)
 
 
     # def on_text(self, text):
@@ -461,6 +471,9 @@ class MessengerApp(MDApp):
         print("2")
         self._device.stop()
         print("999")
+        db.close()
+        sys.exit(0)
+
 
     def do(self, caller: ActionTopAppBarButton):
         print(caller)
@@ -510,11 +523,14 @@ class MessengerApp(MDApp):
                                 content = message_db.content.get().content.decode('utf-8'))
         #self._device.transmit_data(
         #if encrypted:= self._device.encrypt(message_db.recipient, message.packet):
-        a = NetPacket(dst_addr = message_db.recipient, app_id = AppID.MESSENGER, content_type = ContentType.TEXT,
-                      direction = NetPacketDirection.OUT, raw_data = message.packet)
-        print(a.packet)
-        #self._device.transmit_data(packet = a)
-        self._device._packets_queue.put(a)
+        #if message.fragmentation_needed:
+        parts = ceil(len(message.packet) / 100) if len(message.packet) > 100 else 0
+        for i, j in enumerate(range(0, len(message.packet), 100)):
+            a = NetPacket(dst_addr = message_db.recipient, fragm_c = parts, fragment = i,
+                          app_id = AppID.MESSENGER, content_type = ContentType.TEXT,
+                          direction = NetPacketDirection.OUT, raw_data = message.packet[j:j+100])
+            print("send_message fragment", a.packet)
+            self._device.add_packet(a)
         #TODO
 
     def _process_messages(self):
@@ -546,6 +562,8 @@ class MessengerApp(MDApp):
                     chat.unread += 1
                 chat.last_message_id = m.get_id()
                 chat.save()
+                if self.root.ids.screen_manager.get_screen("chat_screen").current_chat == chat.id:
+                    self.root.draw_message(m, pos=0)
 
 
                 #else: # если мы отправителя/получателя не знаем, то выше отправлен сразу запрос ключа, а этот пакет складываем в конец
