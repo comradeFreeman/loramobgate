@@ -1,5 +1,5 @@
 /*
-   loraHF + V-USB
+   loRaRF + V-USB
 */
 
 ////#ifndef FULL_COMMAND_SET
@@ -10,7 +10,7 @@
 // DEFINITIONS
 
 #define SX126X
-//define DEBUG
+//#define DEBUG
 
 #if !defined(SX126X) || !defined(SX127X)
 #define SX126X

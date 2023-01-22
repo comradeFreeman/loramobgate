@@ -133,7 +133,7 @@ class NetPacket:
 		self.source_packet = source_packet
 		self._packet = bytearray()
 		self.src_addr = kwargs.get('src_addr', self.dev_addr)
-		self.dst_addr = kwargs.get('target_addr', settings.BROADCAST) # broadcast
+		self.dst_addr = kwargs.get('dst_addr', settings.BROADCAST) # broadcast
 		self.fragm_c = kwargs.get('fragm_c', 0)
 		self.fragment = kwargs.get('fragment', 0)
 		self.app_id = kwargs.get('app_id', AppID.UNKNOWN)
@@ -401,10 +401,13 @@ class UsbConnection:
 				else:
 					raise usb.core.USBError
 			except usb.core.USBError:
+				#traceback.print_stack()
+				#traceback.print_exc()
 				sleep(1)
 				self.open_device()
 			except:
-				print(traceback.format_exc())
+				traceback.print_stack()
+				traceback.print_exc()
 				return None
 			finally:
 				if lock.locked():
@@ -632,7 +635,7 @@ class Device:
 
 	def retrieve_info(self):
 		self._device.open_device()
-		dev_addr, lora_sync_word, country = 0xacde73bf, s.LORA_SYNC_WORD, 804 # random.getrandbits(32)
+		dev_addr, lora_sync_word, country = 0x0, s.LORA_SYNC_WORD, 804 # random.getrandbits(32)
 		private_key = random.randbytes(28) #, random.randbytes(32)
 		chip = Chip.SX126X
 		try:
@@ -641,7 +644,8 @@ class Device:
 			private_key = bytes(UsbPacket(source_packet=self.send_command(command=s.USB_GET_PRIVATE_KEY)).payload)
 			chip = Chip(UsbPacket(source_packet=self.send_command(command=s.USB_GET_MODULE)).payload)
 		except Exception:
-			print(traceback.format_exc())
+			traceback.print_stack()
+			traceback.print_exc()
 		finally:
 			dev_info = \
 				{
@@ -705,7 +709,6 @@ class Device:
 		bytes_sent = self.send_command(usb_packet = UsbPacket(
 														opcode = s.M_WRITE,
 														align = True, # !!!
-				 										#pydc = len(packet.packet),
 														payload = packet.packet
 													))
 		# снова перевести в режим приёма
@@ -739,7 +742,8 @@ class Device:
 				# но уже в качестве полезной нагрузки
 				print_with_date("check: " + str(packet))
 		except Exception:
-			print(traceback.format_exc())
+			traceback.print_stack()
+			traceback.print_exc()
 
 	def _route_net_packets(self):  # возможно переделать в повторяемый поток через Х время
 		try:
@@ -772,7 +776,7 @@ class Device:
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
 						if self.force_radio or not self._inet.available:
-							print("Route ", packet.packet)
+							print("About to transmit ", packet.packet)
 							if not self.transmit_data(packet):
 								self._packets_queue.put(packet)
 							sleep(.5)
@@ -789,7 +793,8 @@ class Device:
 				print_with_date(("-->" if packet.direction == NetPacketDirection.IN else "<--") + " process: " + str(packet))
 
 		except Exception:
-			print(traceback.format_exc())
+			traceback.print_stack()
+			traceback.print_exc()
 
 """
 

@@ -76,12 +76,14 @@ MessengerRoot:
                     MDBoxLayout:
                         orientation: 'vertical'
                         ScrollView:
+                            on_touch_move: sum(self.vbar) == 1.0 and root.load_chats(self)
                             MDBoxLayout:
                                 id: chats_container
                                 orientation: 'vertical'
                                 padding: 0, "6dp", 0, "10dp"
                                 spacing: "1dp"
                                 adaptive_height: True
+
 
             MDScreen:
                 name: "settings_screen"
@@ -120,33 +122,33 @@ MessengerRoot:
             MDScreen:
                 name: "new_chat_screen"
                 MyMDTopAppBar:
-                    id: toolbar_settings
-                    title: "Settings"
+                    id: toolbar_new_chat
+                    title: "New chat"
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
 
                 MDBoxLayout:
-                    orientation: "vertical"
-                    MDLabel:
-                        text: "settings_label1"
-                        halign: "center"
+                    padding: "15dp", 0, "15dp", 0
 
                     MDTextField:
                         id: new_chat_id
-                        mode: "round"
-                        #do_wrap: False
-                        #multiline: True
-                        pos_hint: { "center_y": .45 }
-                        text_color_normal: "black"
-                        text_color_focus: "black"
-                        #on_text: setattr(send_message, "icon", "send") if self.text else setattr(send_message, "icon", "microphone-plus") #root.on_text(self.text)
+                        mode: "line"
+                        hint_text: "ID"
+                        helper_text: "Enter ID of user you want start conversation with. Both decimal and hex format are accepted"
+                        pos_hint: { "center_y": .5 }
+                        set_text: root.check_id
+                        valign: "center"
+                        font_size: "20sp"
+                        text_color_normal: "#56de47"
 
                     MDIconButton:
-                        id: send_message
+                        id: new_chat
                         icon: "arrow-right"
+                        size_hint_x: None
                         pos_hint: {"center_y": .5}
-                        icon_size: "48sp"
-                        md_bg_color: "green"
+                        icon_size: "20dp"
+                        md_bg_color: "#9999ff"
                         on_release: root.new_chat(self)
+
             MDScreen:
                 name: "chat_screen"
                 current_chat: root.current_chat
@@ -168,7 +170,7 @@ MessengerRoot:
                         ScrollView:
                             id: messages_scroll
                             scroll_y: 0
-                            on_touch_move: sum(self.vbar) == 1.0 and root.load_messages(self) #root.do3(self)
+                            on_touch_move: root.load_messages(self, load_new = not self.vbar[0]) #if self.vbar[0] == 0.0 else root.load_messages(self) #root.do3(self) # (sum(self.vbar) == 1.0 or self.vbar[0] == 0.0) and
                             MDBoxLayout:
                                 id: messages_container
                                 orientation: 'vertical'
@@ -187,6 +189,7 @@ MessengerRoot:
                         MDTextField:
                             id: input_field
                             mode: "round"
+                            font_name: "Roboto-Regular-Emoji.ttf"
                             #do_wrap: False
                             #multiline: True
                             pos_hint: {"center_y": .45}
@@ -211,8 +214,9 @@ MessengerRoot:
         radius: 0
         MDNavigationDrawerMenu:
             MDNavigationDrawerHeader:
+                id: nav_profile
                 title: "Lain"
-                text: "0xacde73bf"
+                text: "0x00000000"
                 source: "assets/icons/me2.png"
                 spacing: "8dp"
                 padding: "12dp", "24dp", 0, "48dp"
@@ -223,11 +227,11 @@ MessengerRoot:
                 text: "Options"
             MDNavigationDrawerDivider:
             MDNavigationDrawerItem:
-                icon: "assets/icons/settings-icon.png"
-                text: "Settings"
-                on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
-            MDNavigationDrawerItem:
                 icon: "message-plus"
                 text: "New chat"
                 on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "new_chat_screen")
+            MDNavigationDrawerItem:
+                icon: "assets/icons/settings-icon.png"
+                text: "Settings"
+                on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
             MDNavigationDrawerDivider:

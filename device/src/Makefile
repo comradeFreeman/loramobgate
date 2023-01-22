@@ -65,11 +65,16 @@ CFLAGS_STD        = -std=gnu11
 
 ### CXXFLAGS_STD
 ### Set the C++ standard to be used during compilation. Documentation (https://github.com/WeAreLeka/Arduino-Makefile/blob/std-flags/arduino-mk-vars.md#cxxflags_std)
-CXXFLAGS_STD      = -std=gnu++11
+
+CFLAGS            = -g -Wall -Wextra -ffunction-sections -fdata-sections
+
+CXXFLAGS_STD      = -std=gnu++17
 
 ### CXXFLAGS
 ### Flags you might want to set for debugging purpose. Comment to stop.
-CXXFLAGS         += -pedantic -Wall -Wextra
+
+#CXXFLAGS         += -pedantic -Wall -Wextra 
+CXXFLAGS          = -g -w -Wall -Wextra -Wno-narrowing -ffunction-sections -fdata-sections -fno-threadsafe-statics
 
 ### MONITOR_PORT
 ### The port your board is connected to. Using an '*' tries all the ports and finds the right one.

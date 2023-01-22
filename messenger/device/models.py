@@ -11,6 +11,7 @@ from peewee import Field
 from typing import Union
 from hashlib import md5
 from kivy.utils import platform
+import pickle
 
 #from zoneinfo import ZoneInfo
 #utc = #ZoneInfo('UTC')
@@ -60,10 +61,12 @@ class TimestampTzField(Field):
 
 	def db_value(self, value: datetime) -> str:
 		if value:
-			return value.replace(tzinfo=timezone.utc).isoformat()
+			#print("DB_VALUE", value)
+			return value.astimezone(timezone.utc).isoformat()
 
 	def python_value(self, value: str) -> datetime:
 		if value:
+			#print("PYTHON_VALUE", value)
 			return datetime.fromisoformat(value).astimezone(localtz)
 
 class DictField(Field):
@@ -141,6 +144,12 @@ class Chat(Model):
 		table_name = 'chats'
 		database = db
 
+@pre_save(sender = Chat)
+def update_last(model_class, chat_obj: Chat, created):
+	#if not created:
+	chat_obj.last_message_id = chat_obj.messages.select().order_by(Message.id.desc()).get_or_none()
+
+
 class Message(Model):
 	alternative_id = CompositeKey('sender', 'recipient', 'date_sent')
 	sender = IntegerField(column_name='sender', index=True, default=BROADCAST)
@@ -158,29 +167,14 @@ class Message(Model):
 	edited = BooleanField(column_name='edited', default=False)
 	reply_to = IntegerField(column_name='reply_to', null=True)
 	forwarded_from = IntegerField(column_name='forwarded_from', null=True)
-	message_hash = CharField(column_name="message_hash")
-	#content_id = IntegerField(column_name='content_id', null=True)
+	message_hash = CharField(column_name="message_hash",null=True, index=True)
 
 
 	class Meta:
 		table_name = 'messages'
 		database = db
 
-@pre_save(sender = Message)
-def fill_message(model_class, message, created):
-	if created:
-		pass
-		#my_timestamp = str(message.timestamp_sent)
-		#new_date = datetime.utcnow().replace(hour = 0, minute = 0, second = 0, microsecond = 0)
-		#new_date += timedelta(seconds=int(my_timestamp[:-2]), milliseconds=(int(my_timestamp) % 100) * 10)
-		#now = datetime.utcnow()
-		#if new_date > now:
-		#	new_date = new_date.replace(day = now.day - 1)
-		#message.date_sent = new_date
-		#message.chat = f"{message.sender}_{message.recipient}"
-
 class Content(Model):
-	#id = ForeignKeyField(model=Message, field=Message.content_id, primary_key=True, on_delete='CASCADE', backref="content")
 	message = ForeignKeyField(model=Message, on_delete='CASCADE', backref='content')
 	ready = BooleanField(column_name='ready', index=True, default=True)
 	content_type = EnumField(enum=ContentType, column_name='content_type', default=ContentType.UNKNOWN)
@@ -189,6 +183,15 @@ class Content(Model):
 	class Meta:
 		table_name = 'content'
 		database = db
+
+@pre_save(sender = Content)
+def update_messagehash(model_class, content_obj: Content, created):
+	message_obj = Message.get(Message.id == content_obj.message)
+	message_obj.message_hash = md5(
+			message_obj.date_sent.isoformat().encode('utf-8') +
+			pickle.dumps(content_obj.content)
+	).hexdigest()
+	message_obj.save()
 
 db.connect()
 db.create_tables([Message, Content, Chat])

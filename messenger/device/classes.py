@@ -22,6 +22,7 @@ class ContentType(Enum):
 	IMAGE = 12
 	AUDIO = 13
 	MESSAGE_STATUS = 14
+	MESSAGE_OPTIONS = 15
 	EMERGENCY = 19
 	# 10-19 всё, что касается моего мессенджера
 	L3NEIGHBORINFO = 20
