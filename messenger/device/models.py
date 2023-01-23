@@ -67,7 +67,7 @@ class TimestampTzField(Field):
 	def python_value(self, value: str) -> datetime:
 		if value:
 			#print("PYTHON_VALUE", value)
-			return datetime.fromisoformat(value).astimezone(localtz)
+			return datetime.fromisoformat(value).astimezone(timezone.utc) #  localtz
 
 class DictField(Field):
 	"""
@@ -188,9 +188,20 @@ class Content(Model):
 def update_messagehash(model_class, content_obj: Content, created):
 	message_obj = Message.get(Message.id == content_obj.message)
 	message_obj.message_hash = md5(
-			message_obj.date_sent.isoformat().encode('utf-8') +
+			message_obj.date_sent.isoformat()[:19].encode('utf-8') +
 			pickle.dumps(content_obj.content)
 	).hexdigest()
+	print("HASH: \n",
+		  message_obj.date_sent, '\n',
+		  message_obj.date_sent.isoformat()[:19], '\n',
+		  message_obj.date_sent.isoformat()[:19].encode('utf-8'), '\n',
+		  content_obj.content, '\n', pickle.dumps(content_obj.content), '\n',
+		  message_obj.date_sent.isoformat()[:19].encode('utf-8') + pickle.dumps(content_obj.content), '\n',
+		  md5(
+			  message_obj.date_sent.isoformat()[:19].encode('utf-8') +
+			  pickle.dumps(content_obj.content)
+		  ).hexdigest())
+	print("upd_message_hash: ", message_obj.id, message_obj.date_sent, message_obj.message_hash)
 	message_obj.save()
 
 db.connect()

@@ -72,11 +72,11 @@ MessengerRoot:
                         id: toolbar_messenger
                         title: "LoRa Messenger"
                         left_action_items: [["menu", lambda x: nav_drawer.set_state("open")]]
-                        right_action_items: [["assets/icons/usual_connections.png", app.do], ["assets/icons/lora_network.png", app.do], ["magnify", lambda x: nav_drawer.set_state("open")]]
+                        right_action_items: [["assets/icons/conn_inet_no.png"], ["assets/icons/conn_lora_no.png", app.do], ["magnify", lambda x: nav_drawer.set_state("open")]]
                     MDBoxLayout:
                         orientation: 'vertical'
                         ScrollView:
-                            on_touch_move: sum(self.vbar) == 1.0 and root.load_chats(self)
+                            #on_touch_move: sum(self.vbar) == 1.0 and root.load_chats(self)
                             MDBoxLayout:
                                 id: chats_container
                                 orientation: 'vertical'

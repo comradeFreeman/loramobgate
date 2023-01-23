@@ -1,8 +1,10 @@
 CURVE = 'secp224r1'
 BROADCAST = 0xffffffff
-PING_PERIOD = 60
+PING_PERIOD = 6
 DB_NAME = 'loramessenger.db'
 VID = 0x16c0
 PID = 0x05dc
 PROCESS_DELAY = 5
+LOAD_CHATS_PERIOD = 30
+LOAD_MESSAGES_PERIOD = 10
 API_URL = 'https://api.lain-is.online/v1/'

@@ -26,7 +26,9 @@ from itertools import groupby
 from kivy.core.clipboard import Clipboard
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.scrollview import MDScrollView
+from kivymd.uix.snackbar import Snackbar
 from typing import Union
+from kivy.clock import Clock
 
 from audiostream import get_input
 from time import sleep
@@ -68,7 +70,7 @@ class MessagePacket:  # тут будет формирование и хране
         self.source_packet = source_packet
         self._packet = bytearray()
         self.timestamp = kwargs.get('timestamp', 0)
-        self.date = kwargs.get('date', datetime.utcnow().replace(tzinfo=localtz))
+        self.date = kwargs.get('date', datetime.utcnow().replace(tzinfo=timezone.utc))
         self.flags = kwargs.get('flags', 0)
         self.reply_to = kwargs.get('reply_to', bytes())
         self.forwarded_from = kwargs.get('forwarded_from', 0)
@@ -76,18 +78,15 @@ class MessagePacket:  # тут будет формирование и хране
         self.fragmentation = kwargs.get('fragmentation', False)
 
         # если это уже готовый пакет и его можно распарсить
-        print("pre_source_packet_MP", type(source_packet))
         if source_packet and len(source_packet) >= 4 and isinstance(source_packet, bytes):
-            print("cond_source_packet_MP")
             self.timestamp = int.from_bytes(source_packet[:3], byteorder = "little")
             self.flags = source_packet[3]
             self.reply_to = source_packet[4:4 + (self.flags & 16)]#.decode('utf-8')
             self.forwarded_from = int.from_bytes(source_packet[4:4 + (self.flags & 4)], byteorder="little")
-            print("src.raw ", source_packet[(4 + (self.flags & 4) + (self.flags & 16)):])
-            print("src_dec ", source_packet[(4 + (self.flags & 4) + (self.flags & 16)):].decode('utf-8'))
             self.content = source_packet[(4 + (self.flags & 4) + (self.flags & 16)):].decode('utf-8')
             self.date = self.convert_my_timestamp(source_packet[:3])
             self.fragmentation = True if len(source_packet) > 100 else False
+            print("Repl_to: ", self.reply_to.hex())
 
 
         if not self.timestamp:
@@ -137,17 +136,22 @@ class MessagePacket:  # тут будет формирование и хране
     @classmethod
     def convert_my_timestamp(cls, obj: Union[datetime, int]):
         if isinstance(obj, datetime):
-            point = datetime.utcnow()#.replace(tzinfo=localtz)
-            value = int((point - point.replace(hour=0,minute=0,second=0,microsecond=0)).\
-                        total_seconds()) * 100 + (point.microsecond % 100)
+            point = datetime.utcnow().replace(tzinfo=timezone.utc)
+            print("point ", point, point.microsecond / 10000)
+            print("obj", obj)
+            value = int((obj - point.replace(hour=0,minute=0,second=0,microsecond=0)).\
+                        total_seconds()) * 100 + int(obj.microsecond / 10000)
+            print("dt to timestamp: ", obj, value)
             return value #value.to_bytes(length=3, byteorder="big")
         elif isinstance(obj, int):#Union[bytes, bytearray]):
             timestamp = str(obj) #int.from_bytes(obj, byteorder='big')
-            new_date = datetime.utcnow().replace(hour = 0, minute = 0, second = 0, microsecond = 0)#, tzinfo=localtz)
-            new_date += timedelta(seconds=int(timestamp[:-2]), milliseconds=(int(timestamp) % 100) * 10)
-            now = datetime.utcnow()#.replace(tzinfo=localtz)
+            new_date = datetime.utcnow().replace(hour = 0, minute = 0, second = 0, microsecond = 0, tzinfo=timezone.utc)
+            new_date += timedelta(seconds=int(timestamp[:5]), milliseconds=int(timestamp[5:]) * 10)
+            now = datetime.utcnow().replace(tzinfo=timezone.utc)
+            print(new_date, now)
             if new_date > now:
                 new_date = new_date.replace(day = now.day - 1)
+            print("timestamp to dt: ", str(obj), new_date)
             return new_date
         return None
 
@@ -158,9 +162,10 @@ class MessengerRoot(MDScreen):
         super(MessengerRoot, self).__init__(**kwargs)
         self.delete_dialog = None
         self.list_chats_changed = True
+        self.action_msg_id = None
         message_actions = [
             { "viewclass": "Item", "text": "Reply", "left_icon": "message-reply", "height": dp(48),
-              "on_release": lambda: self.message_actions_callback("reply"), },
+              "on_release": lambda: self.message_actions_callback("reply"), },# ,
             { "viewclass": "Item", "text": "Copy", "left_icon": "content-copy", "height": dp(48),
               "on_release": lambda: self.message_actions_callback("copy"), },
             { "viewclass": "Item", "text": "Forward", "left_icon": "forward", "height": dp(48),
@@ -199,10 +204,13 @@ class MessengerRoot(MDScreen):
             elevation=4,
             opening_time=0.2
         )
+        Clock.schedule_interval(lambda x: self.load_messages(load_new=True), settings.LOAD_MESSAGES_PERIOD)
+        Clock.schedule_interval(lambda x: self.load_chats(), settings.LOAD_CHATS_PERIOD)
 
-    def load_chats(self, caller):
+    def load_chats(self, caller = None):
         print("chats load", caller)
         # TODO
+        self.list_chats_changed = True
         if self.list_chats_changed:
             self.ids.chats_container.clear_widgets()
             for chat in Chat.select().order_by(Chat.last_message_id.desc()):
@@ -220,37 +228,38 @@ class MessengerRoot(MDScreen):
                 ))
             self.list_chats_changed = False
 
-    def load_messages(self, caller, page=1, count=10, load_new = False):
+    def load_messages(self, caller = None, page=1, count=10, load_new = False):
         current_chat = self.ids.screen_manager.get_screen("chat_screen").current_chat
-        chat = Chat.get_or_create(id = current_chat,
-                                  defaults={"participants": {self.dev_addr: self.dev_addr,
-                                                             current_chat: current_chat},
-                                            "id": current_chat,
-                                            "display_name": hex(current_chat)})[0]
-        if isinstance(caller, MDScreen):
-            self.ids.messages_container.clear_widgets()
-            #self.ids.messages_container.add_widget(LoadPreviousPane(on_release=self.load_messages))
-            self.ids.messages_container.add_widget(MDLabel()) # заглушка, относительно которой цепляются другие виджеты
-            self.ids.toolbar_chat.title = chat.display_name
-            chat.unread = 0
-            chat.save()
-        else:
-            self.ids.screen_manager.get_screen("chat_screen").current_page += 1
-        current_page = self.ids.screen_manager.get_screen("chat_screen").current_page
+        if current_chat:
+            chat = Chat.get_or_create(id = current_chat,
+                                      defaults={"participants": {self.dev_addr: self.dev_addr,
+                                                                 current_chat: current_chat},
+                                                "id": current_chat,
+                                                "display_name": hex(current_chat)})[0]
+            if isinstance(caller, MDScreen):
+                self.ids.messages_container.clear_widgets()
+                #self.ids.messages_container.add_widget(LoadPreviousPane(on_release=self.load_messages))
+                self.ids.messages_container.add_widget(MDLabel()) # заглушка, относительно которой цепляются другие виджеты
+                self.ids.toolbar_chat.title = chat.display_name
+                chat.unread = 0
+                chat.save()
+            else:
+                self.ids.screen_manager.get_screen("chat_screen").current_page += 1
+            current_page = self.ids.screen_manager.get_screen("chat_screen").current_page
 
-        if load_new: # load new
-            if last_shown_messages:= [el for el in self.ids.messages_container.children if isinstance(el, MessageCardBase)]:
-                for message in Message.select().where((Message.id > last_shown_messages[0].id) & (Message.chat == current_chat)):
-                   self.draw_message(message, pos = 0)
-        else: # load previous
-            messages = chat.messages.select().order_by(Message.date_received.desc()).paginate(current_page, count)
-            for date, grouped_by_day in groupby(messages, key=lambda msg: msg.date_received.date()):
-                top_headers = [el for el in self.ids.messages_container.children if isinstance(el, ChatDateHeader)]
-                if top_headers and top_headers[0].ids.content.date == date:
-                    self.ids.messages_container.remove_widget(top_headers[0])
-                for message in grouped_by_day:
-                    self.draw_message(message)
-                self.ids.messages_container.add_widget(ChatDateHeader(date = date), -1)
+            if load_new: # load new
+                if last_shown_messages:= [el for el in self.ids.messages_container.children if isinstance(el, MessageCardBase)]:
+                    for message in Message.select().where((Message.id > last_shown_messages[0].id) & (Message.chat == current_chat)):
+                       self.draw_message(message, pos = 0)
+            else: # load previous
+                messages = chat.messages.select().order_by(Message.date_received.desc()).paginate(current_page, count)
+                for date, grouped_by_day in groupby(messages, key=lambda msg: msg.date_received.date()):
+                    top_headers = [el for el in self.ids.messages_container.children if isinstance(el, ChatDateHeader)]
+                    if top_headers and top_headers[0].ids.content.date == date:
+                        self.ids.messages_container.remove_widget(top_headers[0])
+                    for message in grouped_by_day:
+                        self.draw_message(message)
+                    self.ids.messages_container.add_widget(ChatDateHeader(date = date), -1)
 
 
     def calc_width(self, len_text):
@@ -273,7 +282,8 @@ class MessengerRoot(MDScreen):
                 message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" \
                                  f"[i]> {Message.get(Message.id == r).content.get().content.decode('utf-8')[:reply_symbols]}...[/i][/ref]\n\n"
             elif f:= message.forwarded_from:
-                message_header = f"Forwarded from [b] {f}[/b]\n\n"
+                message_header = f"> Forwarded from [b] {f}[/b]\n\n"
+            #TODO markup doesn't work
             #message.date_received = message.date_received.astimezone(localtz))
             # print(message.date_received)
             # print(message.date_received.astimezone(localtz))
@@ -290,11 +300,6 @@ class MessengerRoot(MDScreen):
                 id = message.id
             ), pos)
 
-
-    # def on_text(self, text):
-    #     if text: self.ids.send_message.icon = "send"
-    #     else: self.ids.send_message.icon = "microphone-plus"
-
     def message_actions_callback(self, action):
         self.message_actions_menu.dismiss()
         if action == "reply":
@@ -306,11 +311,11 @@ class MessengerRoot(MDScreen):
             Clipboard.copy(self.message_actions_menu.caller.message_content)
         elif action == "forward":
             forward_menu = MDListBottomSheet()
-            with open('assets/test/data/chats.json') as f_obj:
-                chats = json.load(f_obj)
-            for chat in chats.keys():
-                forward_menu.add_item(f"{chats[chat]['display_name']} ({chat})", lambda x, y=chat: self.forward_actions_callback(y))
+            for chat in Chat.select().order_by(Chat.last_message_id.desc()):
+                print(chat, chat.display_name)
+                forward_menu.add_item(f"{chat.display_name} ({chat.id})", lambda x, y = chat: self.forward_callback(x, y))
             forward_menu.open()
+            print(self.action_msg_id)
             # case "edit":
             #     pass
         elif action == "delete":
@@ -325,11 +330,14 @@ class MessengerRoot(MDScreen):
             )
             self.delete_dialog.open()
             #TODO remove affected replied messages bindings
-        #print(action, self.message_actions_menu.caller)
-        #print(self.message_actions_menu.caller.ids.message.text)
+
 
     def delete_message(self, caller):
-        if caller.text == "DELETE" and (widgets:= [el for el in self.ids.messages_container.children if el.id == self.message_actions_menu.caller.id]):
+        if caller.text == "DELETE" and (widgets:= [el for el in self.ids.messages_container.children
+                                                   if el.id == self.message_actions_menu.caller.id and
+                                                   isinstance(el, MessageCardBase)]):
+            Message.delete_by_id(widgets[0].id)
+            #TODO process references
             self.ids.messages_container.remove_widget(widgets[0])
         self.delete_dialog.dismiss()
 
@@ -341,8 +349,18 @@ class MessengerRoot(MDScreen):
         self.chat_actions_menu.caller = caller
         self.chat_actions_menu.open()
 
-    def forward_actions_callback(self, chat):
-        print(chat)
+    def forward_callback(self, x, c):
+        if c and (m:= Message.get_or_none(Message.id == self.action_msg_id)):
+            print(m.chat.display_name, c.get_id())
+            nm = Message.create(sender = self.dev_addr, recipient = c.get_id(), forwarded_from = m.forwarded_from or m.chat.get_id(),
+                                reply_to = 0, chat = c, message_hash = "")
+            nc = Content.create(message = nm, content_type = ContentType.TEXT, content = m.content.get().content) # TODO?
+            nm.save()
+            nc.save()
+
+            #self.draw_message(nm, pos=0)
+            app.send_message(nm.get_id())
+        self.action_msg_id = None
 
     def record_audio_message(self, data):
         self.ids.messages_container.add_widget(ChatDateHeader(date = len(data))) # TODO
@@ -353,6 +371,7 @@ class MessengerRoot(MDScreen):
             current_chat = self.ids.screen_manager.get_screen("chat_screen").current_chat
             if _:= [c for c in self.ids.chat_area.children if isinstance(c, ReplyMessagePane)]:
                 reply_to = _[0].msgid
+                self.ids.chat_area.remove_widget(_[0])
             if chat:= Chat.get_or_none(Chat.id == current_chat):
                 m = Message.create(sender = self.dev_addr, recipient = current_chat, forwarded_from = forwarded_from,
                                    reply_to = reply_to, chat = chat, message_hash = "")
@@ -395,7 +414,10 @@ class MessengerRoot(MDScreen):
         except: caller.error = True
         else: caller.error = False
 
-
+    # def open_chat(self, caller, chat = None):
+    #     print(caller, chat)
+    #     self.current_chat = chat if chat else caller.chat
+    #     self.ids.screen_manager.current = "chat_screen"
 
 class ChatCard(MDCard, ButtonBehavior):
     chat = NumericProperty(0xffffffff)
@@ -426,9 +448,11 @@ class MessageCardBase(MDCard, ButtonBehavior):
     messages_scroll = ObjectProperty()
     id = NumericProperty()
 
-    def messagecard_callback(self, caller):
+    def messagecard_callback(self, caller, msg_id):
         self.message_actions_menu.caller = caller
         self.message_actions_menu.open()
+        app.set_action_msg_id(msg_id)
+        #self.parent.root.action_msg_id = msg_id
 
     def scroll_replied(self, caller: MDLabel):
         try:
@@ -479,6 +503,8 @@ class MessengerApp(MDApp):
         self._inet = InternetConnection()
         self._device: Device = None
         self._check_msg_thread = RepeatTimer(self._process_delay, self._process_messages)
+        #self._monitor_conn_thread = RepeatTimer(self._process_delay, self._connection_monitor)
+
         #
         # self._ui_queue = queue.Queue
         # self._ui_monitor_thread = RepeatTimer(self._process_delay, self._ui_monitor)
@@ -496,6 +522,7 @@ class MessengerApp(MDApp):
         self.root.dev_addr = self.dev_addr
         self.root.ids.nav_profile.text = hex(self.dev_addr)
         self._check_msg_thread.start()
+        Clock.schedule_interval(self._connection_monitor, self._process_delay)
 
     def on_stop(self):
         print("1")
@@ -524,11 +551,24 @@ class MessengerApp(MDApp):
     def do3(self, caller):
         print(caller.vbar)
 
+    def set_action_msg_id(self, msg_id):
+        if isinstance(msg_id, int):
+            self.root.action_msg_id = msg_id
 
-    def open_chat(self, caller):
-        self.root.current_chat = caller.chat
-        #self.root.ids.screen_manager.get_screen("chat_screen").current_chat = str(caller.chat)
-        self.root.ids.screen_manager.current = "chat_screen"
+    def _connection_monitor(self, dt):
+        a = self.root.ids.toolbar_messenger.right_action_items
+        if self._inet.available: a[0][0] = "assets/icons/conn_inet.png"
+        else: a[0][0] = "assets/icons/conn_inet_no.png"
+        if self._device.device_available: a[1][0] = "assets/icons/conn_lora.png"
+        else: a[1][0] = "assets/icons/conn_lora_no.png"
+        self.root.ids.toolbar_messenger.update_action_bar(self.root.ids.toolbar_messenger.children[1].children[0], a)
+        #TODO paths
+
+
+    # def open_chat(self, caller, chat = None):
+    #     print(caller, chat)
+    #     self.root.current_chat = chat if chat else caller.chat
+    #     self.root.ids.screen_manager.current = "chat_screen"
 
     def keyboard_events(self, window, key, *largs):
         #if self.manager_open and key in (1001, 27):
@@ -542,9 +582,11 @@ class MessengerApp(MDApp):
         message_rp = None
         if message_db.reply_to:
             message_rp = Message.get_or_none(Message.id == message_db.reply_to)
+        print("send_message date.sent: ", message_db.date_sent)
         message = MessagePacket(reply_to = message_rp.message_hash if message_rp else "",
                                 forwarded_from = message_db.forwarded_from,
-                                content = message_db.content.get().content.decode('utf-8'))
+                                content = message_db.content.get().content.decode('utf-8'),
+                                date = message_db.date_sent)
         #self._device.transmit_data(
         #if encrypted:= self._device.encrypt(message_db.recipient, message.packet):
         #if message.fragmentation_needed:
@@ -577,9 +619,10 @@ class MessengerApp(MDApp):
                                                         "id": packet.src_addr,
                                                         "display_name": hex(packet.src_addr)})[0] # TODO read docs
                     reply_to = 0
-                    if message.reply_to and (m_rp:= Message.get_or_none((Message.message_hash == message.reply_to.hex())
-                                                                        & Message.chat == chat)):
+                    #print("REPLY ", chat, message.reply_to.hex(), Message.get_or_none((Message.message_hash == message.reply_to.hex()) & (Message.chat == chat)), Message.get_or_none(Message.message_hash == message.reply_to.hex()))
+                    if message.reply_to and (m_rp:= Message.get_or_none((Message.message_hash == message.reply_to.hex()) & (Message.chat == chat))):
                         reply_to = m_rp.id
+                    #print(reply_to)
                     m = Message.create(sender = packet.src_addr, recipient = packet.dst_addr, date_sent = message.date,
                                        forwarded_from = message.forwarded_from, reply_to = reply_to, chat = chat,
                                        message_hash = "")
@@ -590,8 +633,6 @@ class MessengerApp(MDApp):
                         chat.unread += 1
                     #chat.last_message_id = m.get_id()
                     chat.save()
-                    # if self.root.ids.screen_manager.get_screen("chat_screen").current_chat == chat.id:
-                    #     self.root.draw_message(m, pos=0)
                 elif packet.content_type == ContentType.MESSAGE_OPTIONS:
                     pass
                     # определяем требуемое действие. возможно, нужно переотправить какое-то сообщение (фрагмент)
