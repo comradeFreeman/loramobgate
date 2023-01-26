@@ -144,10 +144,10 @@ class Chat(Model):
 		table_name = 'chats'
 		database = db
 
-@pre_save(sender = Chat)
-def update_last(model_class, chat_obj: Chat, created):
-	#if not created:
-	chat_obj.last_message_id = chat_obj.messages.select().order_by(Message.id.desc()).get_or_none()
+# @pre_save(sender = Chat)
+# def update_last(model_class, chat_obj: Chat, created):
+# 	#if not created:
+# 	chat_obj.last_message_id = chat_obj.messages.select().order_by(Message.id.desc()).get_or_none()
 
 
 class Message(Model):
@@ -173,6 +173,11 @@ class Message(Model):
 	class Meta:
 		table_name = 'messages'
 		database = db
+
+@pre_save(sender = Message)
+def update_last(model_class, message_obj: Chat, created):
+	#if created:
+	message_obj.chat.last_message_id = message_obj.id
 
 class Content(Model):
 	message = ForeignKeyField(model=Message, on_delete='CASCADE', backref='content')

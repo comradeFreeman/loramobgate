@@ -1,6 +1,7 @@
 CURVE = 'secp224r1'
 BROADCAST = 0xffffffff
-PING_PERIOD = 6
+PING_PERIOD = 30
+PING_HOST = 'lain-is.online'
 DB_NAME = 'loramessenger.db'
 VID = 0x16c0
 PID = 0x05dc

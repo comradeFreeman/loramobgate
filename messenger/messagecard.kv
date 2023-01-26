@@ -4,14 +4,15 @@
 <MessageCardBase>:
     id: root.id
     #size_hint: message.texture_size[0], None
-    size_hint: .8, None
+    size_hint: root.size_hint_x, None
     height:  message.texture_size[1] + sp(32)
     on_release: root.messagecard_callback(self, root.id)
     orientation: "vertical"
     AnchorLayout:
+    #BoxLayout:
         orientation: "vertical"
         padding: "12dp", "5dp", "10dp", "2dp"
-        pos_hint: {"center_y": .55}
+        #pos_hint: {"center_y": .3}
 
         MDLabel:
             id: message
@@ -24,7 +25,8 @@
             messages_scroll: root.messages_scroll
             msgid: root.id
             font_name: "Roboto-Regular-Emoji.ttf"
-            #text_size: 200, None
+            #pos_hint: {"center_y": .4}
+            #size_hint_x: .8
 
         MDLabel:
             id: time
@@ -33,6 +35,9 @@
             font_size: "12sp"
             valign: 'bottom'
             halign: "right"
+            #size_hint_y: .2
+            #pos_hint: {"center_x": .5, "center_y": .5}
+            #pos_hint: {"center_y": .2}
             #tooltip_text: root.full_date.strftime("%d.%m.%Y %H:%M:%S %Z%z")
 
 

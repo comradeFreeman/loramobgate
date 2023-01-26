@@ -108,6 +108,14 @@ USB_PUBLIC usbMsgLen_t usbFunctionSetup(uchar data[8])
 #endif
       usbMsgPtr = controlBuf;
       return *(uint16_t*)&controlBuf[RET_PYDC] + 3;
+    
+    case USB_ENABLE_MODULE:
+      PORTD |= 1 << 6;
+      return 0;
+      
+    case USB_DISABLE_MODULE:
+      PORTD &= ~(1 << 6);
+      return 0;
 
     case USB_RADIO_RETRIEVE_MESSAGE: // Mega -> PC
       if (ready) { // подумать?
@@ -462,6 +470,7 @@ void storeMessage() {
 }
 
 void setup() {
+  PORTD |= 1 << 6; // enable 3.3 V supply on module
   uint16_t i;
   RingBuf_Init(msgBuffer, BUFFLEN, sizeof(uint8_t), &ringbuf);
   RingBuf_Clear(&ringbuf);

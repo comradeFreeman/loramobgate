@@ -54,10 +54,12 @@ localtz = datetime.now().astimezone().tzinfo
 
 if platform == "android":
     from android.permissions import request_permissions, Permission
-    request_permissions([Permission.WRITE_EXTERNAL_STORAGE,
+    request_permissions([Permission.INTERNET,
+                         Permission.ACCESS_NETWORK_STATE,
+                         Permission.ACCESS_WIFI_STATE,
+                         Permission.WRITE_EXTERNAL_STORAGE,
                          Permission.READ_EXTERNAL_STORAGE,
-                         Permission.RECORD_AUDIO,
-                         Permission.INTERNET])
+                         Permission.RECORD_AUDIO])
     import usb4a.usb
     #localtz = datetime.now().astimezone().tzinfo
 else:
@@ -75,7 +77,6 @@ class MessagePacket:  # тут будет формирование и хране
         self.reply_to = kwargs.get('reply_to', bytes())
         self.forwarded_from = kwargs.get('forwarded_from', 0)
         self.content = kwargs.get('content', "")
-        self.fragmentation = kwargs.get('fragmentation', False)
 
         # если это уже готовый пакет и его можно распарсить
         if source_packet and len(source_packet) >= 4 and isinstance(source_packet, bytes):
@@ -98,10 +99,6 @@ class MessagePacket:  # тут будет формирование и хране
     def packet(self):# -> list:
         self.update()
         return self._packet
-
-    @property
-    def fragmentation_needed(self):
-        return self.fragmentation
 
     def __str__(self) -> str:
         return ".".join([str(el) for el in self.packet])
@@ -263,8 +260,9 @@ class MessengerRoot(MDScreen):
 
 
     def calc_width(self, len_text):
-        factor = sp(12) * len_text / self.width
-        reply_symbols = int(self.width * factor / sp(15))
+        #print(self.width, len_text)
+        factor = (sp(12) * len_text + 30)/ self.width
+        reply_symbols = int((self.width - 6*sp(12)) * factor / sp(12))
         if factor <= .9:
             return factor, reply_symbols
         else:
@@ -284,13 +282,10 @@ class MessengerRoot(MDScreen):
             elif f:= message.forwarded_from:
                 message_header = f"> Forwarded from [b] {f}[/b]\n\n"
             #TODO markup doesn't work
-            #message.date_received = message.date_received.astimezone(localtz))
-            # print(message.date_received)
-            # print(message.date_received.astimezone(localtz))
+
             self.ids.messages_container.add_widget(card(
                 message_header = message_header,
                 message_content = message_content,
-                #time = (message.date_received.astimezone(localtz)).strftime("%H:%M"),
                 full_date = message.date_received.astimezone(localtz),
                 size_hint_x = preferred_factor,
                 message_actions_menu = self.message_actions_menu,
@@ -304,7 +299,6 @@ class MessengerRoot(MDScreen):
         self.message_actions_menu.dismiss()
         if action == "reply":
             if not [c for c in self.ids.chat_area.children if isinstance(c, ReplyMessagePane)]:
-                #(self.ids.chat_area.children) == 1: # упрощение. там должен быть только скролбокс, отсюда и пляшем
                 self.ids.chat_area.add_widget(ReplyMessagePane(text = self.message_actions_menu.caller.message_content,
                                                                msgid = self.message_actions_menu.caller.id))
         elif action == "copy":
@@ -312,7 +306,6 @@ class MessengerRoot(MDScreen):
         elif action == "forward":
             forward_menu = MDListBottomSheet()
             for chat in Chat.select().order_by(Chat.last_message_id.desc()):
-                print(chat, chat.display_name)
                 forward_menu.add_item(f"{chat.display_name} ({chat.id})", lambda x, y = chat: self.forward_callback(x, y))
             forward_menu.open()
             print(self.action_msg_id)
@@ -324,20 +317,25 @@ class MessengerRoot(MDScreen):
                 text="This message will be deleted forever and it would be impossible to recover it since messages are stored only on clients devices!",
                 type="alert",
                 buttons=[
-                    MDRaisedButton(text="CANCEL", on_release=self.delete_message),
-                    MDFlatButton(text="DELETE", on_release=self.delete_message),
+                    MDRaisedButton(text="CANCEL", on_release=self.delete_message_callback),
+                    MDFlatButton(text="DELETE", on_release=self.delete_message_callback),
                 ],
             )
             self.delete_dialog.open()
-            #TODO remove affected replied messages bindings
 
 
-    def delete_message(self, caller):
+    def delete_message_callback(self, caller):
         if caller.text == "DELETE" and (widgets:= [el for el in self.ids.messages_container.children
                                                    if el.id == self.message_actions_menu.caller.id and
                                                    isinstance(el, MessageCardBase)]):
-            Message.delete_by_id(widgets[0].id)
-            #TODO process references
+            if target := Message.get_or_none(Message.id == widgets[0].id):
+                for message in Message.select().where(Message.reply_to == target.id):
+                    message.reply_to = 0
+                    message.save()
+                if target.chat.last_message_id == target.id:
+                    target.chat.last_message_id = target.chat.messages.select().where(Message.id != target.id).order_by(Message.id.desc()).get_or_none()
+                    target.chat.save()
+                Message.delete_by_id(target.id)
             self.ids.messages_container.remove_widget(widgets[0])
         self.delete_dialog.dismiss()
 
@@ -351,14 +349,11 @@ class MessengerRoot(MDScreen):
 
     def forward_callback(self, x, c):
         if c and (m:= Message.get_or_none(Message.id == self.action_msg_id)):
-            print(m.chat.display_name, c.get_id())
             nm = Message.create(sender = self.dev_addr, recipient = c.get_id(), forwarded_from = m.forwarded_from or m.chat.get_id(),
                                 reply_to = 0, chat = c, message_hash = "")
             nc = Content.create(message = nm, content_type = ContentType.TEXT, content = m.content.get().content) # TODO?
             nm.save()
             nc.save()
-
-            #self.draw_message(nm, pos=0)
             app.send_message(nm.get_id())
         self.action_msg_id = None
 
@@ -552,7 +547,7 @@ class MessengerApp(MDApp):
         print(caller.vbar)
 
     def set_action_msg_id(self, msg_id):
-        if isinstance(msg_id, int):
+        if isinstance(msg_id, int) and 0 <= msg_id < 0xffffffff:
             self.root.action_msg_id = msg_id
 
     def _connection_monitor(self, dt):
@@ -633,6 +628,10 @@ class MessengerApp(MDApp):
                         chat.unread += 1
                     #chat.last_message_id = m.get_id()
                     chat.save()
+                    a = NetPacket(dst_addr = packet.src_addr, app_id = AppID.NETWORK, content_type = ContentType.L3CNFRP,
+                                  direction = NetPacketDirection.OUT, raw_data = packet.hashsum)
+                    print("SEND CONFIRMATION", a.packet)
+                    self._device.add_packet(a)
                 elif packet.content_type == ContentType.MESSAGE_OPTIONS:
                     pass
                     # определяем требуемое действие. возможно, нужно переотправить какое-то сообщение (фрагмент)

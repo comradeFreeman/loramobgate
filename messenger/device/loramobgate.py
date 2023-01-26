@@ -17,6 +17,8 @@ import anytree.cachedsearch
 from anytree import Node, LevelOrderIter, LevelGroupOrderIter
 import threading
 
+import ssl
+
 from datetime import datetime, timezone, timedelta
 ###
 import tinyec.ec as ec
@@ -28,7 +30,7 @@ import settings as settings
 import http.client as http_client
 from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
 from models import Message, Content
-from hashlib import sha256
+from hashlib import sha256, md5
 
 from kivy.utils import platform
 
@@ -81,11 +83,14 @@ class InternetConnection:
 		return self._avail
 
 	def _check_inet(self):
-		conn = http_client.HTTPSConnection("8.8.8.8", timeout=5)
+		print(ssl.get_default_verify_paths())
+		conn = http_client.HTTPSConnection(settings.PING_HOST, timeout=5)
 		try:
-			conn.request("HEAD", "/")
+			conn.request("HEAD", "/ping")
 			self._avail = True
 		except Exception:
+			traceback.print_exc()
+			traceback.print_stack()
 			self._avail = False
 		finally:
 			conn.close()
@@ -108,17 +113,22 @@ class NodeExtended(Node):
 
 
 class Transaction(threading.Thread):
-	def __init__(self, *args, transaction_list: set, transaction, ttl, **kwargs: dict):
+	def __init__(self, *args, transaction_dict: dict, packet, ttl, queue: queue.Queue = None,**kwargs: dict):
 		self.ttl = ttl
-		self.transaction_list = transaction_list
-		self.transaction = transaction
+		self.transaction_dict = transaction_dict
+		self.packet = packet
+		self.packet_hash = packet.hashsum
+		self._queue = queue
 		super(Transaction, self).__init__(*args, **kwargs)
 
 	def run(self):
-		self.transaction_list.update([self.transaction])
+		self.transaction_dict.update({self.packet_hash: self.packet})
 		sleep(self.ttl)
-		if self.transaction in self.transaction_list:
-			self.transaction_list.remove(self.transaction)
+		if self.packet_hash in self.transaction_dict.keys():
+			if self._queue and self.packet.direction == NetPacketDirection.OUT and self.packet.app_id == AppID.MESSENGER:
+				print(f"NO CONFIRMATION RECEIVED FOR {self.packet.packet}")
+				self._queue.put(self.packet.duplicate())
+			del self.transaction_dict[self.packet_hash]
 
 
 class RepeatTimer(threading.Timer):
@@ -159,6 +169,10 @@ class NetPacket:
 
 	def __hash__(self) -> int:
 		return hash(str(self.packet)) #hash(frozenset(self.packet))
+
+	@property
+	def hashsum(self) -> bytes:
+		return md5(self.packet).digest()
 
 	def __setattr__(self, key, value):
 		if key == "content_type" and not isinstance(value, ContentType):
@@ -216,14 +230,14 @@ class NetPacket:
 		self.direction = NetPacketDirection(not self.direction.value)
 
 	def duplicate(self):
-		return NetPacket(source_packet = self.packet)
+		return NetPacket(source_packet = self.packet, direction = self.direction)
 
 
 class Routing:
 	dev_addr = 0
 	def __init__(self, packets_queue, keys, ttl_neighbor=30, ttl_transactions=36):
 		self._keys: Keys = keys
-		self._last_transactions = set()
+		self._last_transactions = {}
 		self._packets_queue: queue.Queue = packets_queue
 		self.ttl_neighbor = ttl_neighbor
 		self.ttl_transactions = ttl_transactions
@@ -293,7 +307,10 @@ class Routing:
 	def process_network_event(self, packet):
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
 			#match packet.content_type:
-			if packet.content_type == ContentType.L3NEIGHBORINFO:
+			if packet.content_type == ContentType.L3CNFRP:
+				if packet.raw_data in self._last_transactions.keys(): # hash in last_transactions
+					del self._last_transactions[packet.raw_data]
+			elif packet.content_type == ContentType.L3NEIGHBORINFO:
 				#case ContentType.L3NEIGHBORINFO:
 					# сначала обработать (обновить своё дерево),
 					# а потом уже слать своё!
@@ -346,16 +363,17 @@ class Routing:
 
 
 	################################### TRANSACTIONS
-	def new_transaction_event(self, packet: Union[NetPacket, int], custom_ttl = None):
+	def new_transaction_event(self, packet: NetPacket, custom_ttl = None):
 		try:
-			Transaction(transaction_list = self._last_transactions,
-						transaction = hash(packet) if isinstance(packet, NetPacket) else packet,
-						ttl =custom_ttl or self.ttl_transactions * 3).start()
+			Transaction(transaction_dict = self._last_transactions,
+						packet = packet,
+						queue = self._packets_queue,
+						ttl = custom_ttl or self.ttl_transactions * 3).start()
 		except Exception:
 			print(traceback.format_exc())
 
 	def is_recent(self, packet: NetPacket) -> bool:
-		return hash(packet) in self._last_transactions
+		return packet.hashsum in self._last_transactions.keys()
 
 
 class UsbConnection:
@@ -779,7 +797,7 @@ class Device:
 							print("About to transmit ", packet.packet)
 							if not self.transmit_data(packet):
 								self._packets_queue.put(packet)
-							sleep(.5)
+							sleep(.2)
 						else:
 							pass
 					# # запомнили на время, что мы что-то приняли или отправили
