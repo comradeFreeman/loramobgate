@@ -31,6 +31,8 @@ import http.client as http_client
 from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
 from models import Message, Content
 from hashlib import sha256, md5
+from anytree.exporter import JsonExporter
+
 
 from kivy.utils import platform
 
@@ -58,18 +60,11 @@ def try_pickle(value):
 def compress_point(point: ec.Point):
 	return str(point.x + point.y % 2 + 461)
 
-
-# s = SettingsParser(filepaths=['./settings.h',
-# 							  '../LoRaRF-Arduino-2.1.1/src/SX126x.h',
-# 							  '../LoRaRF-Arduino-2.1.1/src/SX126x_API.h',
-# 							  '../LoRaRF-Arduino-2.1.1/src/SX127x.h',
-# 							  '../LoRaRF-Arduino-2.1.1/src/BaseLoRa.h',
-# 							  '../LoRaRF-Arduino-2.1.1/src/SX126x_driver.h'])
-
 import declarations as s
 
 lock = threading.Lock()
-
+context = ssl.SSLContext()
+context.load_verify_locations(cafile="./assets/certs/cert.pem")
 
 
 class InternetConnection:
@@ -83,8 +78,9 @@ class InternetConnection:
 		return self._avail
 
 	def _check_inet(self):
-		print(ssl.get_default_verify_paths())
-		conn = http_client.HTTPSConnection(settings.PING_HOST, timeout=5)
+		# print(ssl.get_default_verify_paths())
+		# print(context.get_ca_certs())
+		conn = http_client.HTTPSConnection(settings.PING_HOST, context = context, timeout=5)
 		try:
 			conn.request("HEAD", "/ping")
 			self._avail = True
@@ -123,12 +119,18 @@ class Transaction(threading.Thread):
 
 	def run(self):
 		self.transaction_dict.update({self.packet_hash: self.packet})
-		sleep(self.ttl)
-		if self.packet_hash in self.transaction_dict.keys():
-			if self._queue and self.packet.direction == NetPacketDirection.OUT and self.packet.app_id == AppID.MESSENGER:
-				print(f"NO CONFIRMATION RECEIVED FOR {self.packet.packet}")
-				self._queue.put(self.packet.duplicate())
-			del self.transaction_dict[self.packet_hash]
+		for i in range(4):
+			sleep(self.ttl >> 2) # ttl/4
+			#print("PCC: ", self.packet_hash)
+			#print("TransCC: ", self.transaction_dict)
+			if self.packet_hash in self.transaction_dict and self._queue \
+					and self.packet.direction == NetPacketDirection.OUT \
+					and self.packet.app_id == AppID.MESSENGER:
+					print(f"NO CONFIRMATION RECEIVED FOR {self.packet.packet}")
+					self._queue.put(self.packet.duplicate())
+		else:
+			if self.packet_hash in self.transaction_dict:
+				del self.transaction_dict[self.packet_hash]
 
 
 class RepeatTimer(threading.Timer):
@@ -215,6 +217,9 @@ class NetPacket:
 	def dict(self) -> dict:
 		return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
+	@property
+	def is_fragmented(self) -> bool:
+		return bool(self.fragm_c)
 
 	def update(self):
 		self._packet = bytearray(pack(f"<2I5B", self.src_addr, self.dst_addr, self.fragm_c, self.fragment,
@@ -235,7 +240,7 @@ class NetPacket:
 
 class Routing:
 	dev_addr = 0
-	def __init__(self, packets_queue, keys, ttl_neighbor=30, ttl_transactions=36):
+	def __init__(self, packets_queue, keys, ttl_neighbor=settings.TTL_NEIGHBOR, ttl_transactions=settings.TTL_TRANSACTION):
 		self._keys: Keys = keys
 		self._last_transactions = {}
 		self._packets_queue: queue.Queue = packets_queue
@@ -254,7 +259,9 @@ class Routing:
 		self._share_neighbors_thread.cancel()
 		print("8")
 	################################### NEIGHBORS
-	def neighbors(self, maxlevel: Union[int, None] = 5, include_root = False) -> list:
+	def neighbors(self, maxlevel: Union[int, None] = 5, include_root = False, jsonify = False) -> Union[list, str]:
+		if jsonify:
+			return JsonExporter(sort_keys = True).export(self._root_node)
 		return [ node.name for node in LevelOrderIter(self._root_node, maxlevel = maxlevel) ][int(not include_root):]
 
 	def add_neighbor(self, source, new_neighbor):
@@ -264,7 +271,7 @@ class Routing:
 			if source_node := anytree.cachedsearch.find(self._root_node, lambda node: node.name == source):
 				NodeExtended(name = new_neighbor,
 							 parent = source_node,
-							 ttl =self.ttl_neighbor * 3)
+							 ttl = self.ttl_neighbor * 3)
 
 			# значит, это сосед первого ранга
 			# не факт, конечно. может так статься, что более дальний сосед пошлёт пакет раньше, чем ближний
@@ -308,8 +315,12 @@ class Routing:
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
 			#match packet.content_type:
 			if packet.content_type == ContentType.L3CNFRP:
-				if packet.raw_data in self._last_transactions.keys(): # hash in last_transactions
+				print("CONFIRMATION ", packet.raw_data)
+				if packet.raw_data in self._last_transactions: # hash in last_transactions
+					#print("NET TP: ", self._last_transactions)
 					del self._last_transactions[packet.raw_data]
+					#print("NET TA: ", self._last_transactions)
+				return
 			elif packet.content_type == ContentType.L3NEIGHBORINFO:
 				#case ContentType.L3NEIGHBORINFO:
 					# сначала обработать (обновить своё дерево),
@@ -373,7 +384,7 @@ class Routing:
 			print(traceback.format_exc())
 
 	def is_recent(self, packet: NetPacket) -> bool:
-		return packet.hashsum in self._last_transactions.keys()
+		return packet.hashsum in self._last_transactions
 
 
 class UsbConnection:
@@ -452,7 +463,7 @@ class UsbConnection:
 	def __bool__(self):
 		return self._usb != None
 
-# TODO Обязательно в случае командных пакетов с Payload нужно чтобы pydst был кратен 8!
+
 class UsbPacket:  # тут будет формирование и хранение сообщений для/с устройства по формату
 	def __init__(self, source_packet=None, **kwargs):
 		self._packet = bytearray()
@@ -552,7 +563,6 @@ class Keys:
 			public_key = ec.Point(self.curve, *public_key)
 		self._keys[dev_addr] = { 'public_key': public_key,
 								 'session_key': self.generate_session_key(public_key) }
-		# TODO заставить работать генерацию ключа сессии и создание ключа сессии
 
 	def get_pk(self, dev_addr):
 		if dev_addr in self._keys.keys():
@@ -573,6 +583,7 @@ class Keys:
 	def generate_session_key(self, public_key: ec.Point):
 		date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y%m%d")
 		return sha256(compress_point(self._private_key * public_key).encode() + date.encode()).digest()
+		# TODO подумать с utcnow
 
 	def renew_session_keys(self):
 		if not self.last_renewed or datetime.now().day - self.last_renewed.day >= 1:
@@ -603,6 +614,7 @@ class Device:
 		self._packets_queue = queue.Queue()
 		self._keys = Keys(private_key=_, packets_queue = self._packets_queue)
 		self._routing = Routing(packets_queue = self._packets_queue, keys = self._keys)
+		self._partial_packets = {}
 		self._initialize()
 
 	@property
@@ -616,7 +628,6 @@ class Device:
 	@property
 	def neighbors(self):
 		return self._routing.neighbors()
-		# TODO. Сделать параметр jsonify для того, чтобы отдавать инфу на сервер
 
 	@property
 	def queue_size(self):
@@ -754,8 +765,6 @@ class Device:
 						content_type = ContentType.LORA,
 						raw_data = packet
 					))
-				# TODO подумать, как правильно обработать ЛОРУ и обычный пакет по формату
-				# Придумал.
 				# Если спарсили и не валид, то это - Лора, помещаем её опять в Нетпакет,
 				# но уже в качестве полезной нагрузки
 				print_with_date("check: " + str(packet))
@@ -776,12 +785,23 @@ class Device:
 						#match packet.app_id:
 							#case AppID.NETWORK: # события сети
 							self._routing.process_network_event(packet)
-								# TODO отправить этот пакет дальше и не забыть занести в транзакции
 						elif packet.app_id == AppID.MESSENGER:
 							#case AppID.MESSENGER: # события мессенджера
 								# или всё равно отправляем в месседж_квек, а там уже мессенджер будет периодически
 								# ходить по нерасшифрованным сообщениям и давать запросы на ключ
-							self._messenger_queue.put(packet)
+							if packet.is_fragmented:
+								if packet.raw_data[:16].hex() not in self._partial_packets.keys():
+									self._partial_packets[packet.raw_data[:16].hex()] = [0] * packet.fragm_c
+								self._partial_packets[packet.raw_data[:16].hex()][packet.fragment] = packet.raw_data[16:]
+								if all(self._partial_packets[packet.raw_data[:16].hex()]):
+									full = packet.duplicate()
+									full.raw_data = b''.join(self._partial_packets[packet.raw_data[:16].hex()])
+									self._messenger_queue.put(full)
+									del self._partial_packets[packet.raw_data[:16].hex()]
+									print(full)
+								print(self._partial_packets)
+							else:
+								self._messenger_queue.put(packet)
 							if (packet.dst_addr == settings.BROADCAST):
 								copy = packet.duplicate()
 								copy.swap_direction()
@@ -801,11 +821,6 @@ class Device:
 						else:
 							pass
 					# # запомнили на время, что мы что-то приняли или отправили
-					# self._routing.new_transaction_event(packet_hash)
-					# TODO! Выяснить, не повлияет ли изменение параметров пакета в case'ах (передача по ссылке?)
-					#  на правильный хэш тут
-
-					# ВЛИЯЕТ!
 
 
 				print_with_date(("-->" if packet.direction == NetPacketDirection.IN else "<--") + " process: " + str(packet))

@@ -13,7 +13,7 @@ package.domain = org.aelita
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,json,db,ttf
+source.include_exts = py,png,jpg,kv,atlas,json,db,ttf,pem
 
 # (list) List of inclusions using pattern matching
 #source.include_patterns = assets/*,images/*.png
@@ -29,7 +29,7 @@ source.include_exts = py,png,jpg,kv,atlas,json,db,ttf
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-version = 0.4
+version = 0.5.2
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -184,7 +184,7 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,RECORD_AUD
 # Either form may be used, and assets need not be in 'source.include_exts'.
 # 1) android.add_assets = source_asset_relative_path
 # 2) android.add_assets = source_asset_path:destination_asset_relative_path
-android.add_assets = assets/test/avatars,device
+android.add_assets = assets/test/avatars,assets/certs,device
 
 # (list) Put these files or directories in the apk res directory.
 # The option may be used in three ways, the value may contain one or zero ':'
