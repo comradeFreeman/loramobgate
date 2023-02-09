@@ -32,6 +32,7 @@ from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
 from models import Message, Content
 from hashlib import sha256, md5
 from anytree.exporter import JsonExporter
+from os import path
 
 
 from kivy.utils import platform
@@ -64,7 +65,7 @@ import declarations as s
 
 lock = threading.Lock()
 context = ssl.SSLContext()
-context.load_verify_locations(cafile="./assets/certs/cert.pem")
+context.load_verify_locations(cafile=path.join(settings.ASSETS_CERTS, "cert.pem"))
 
 
 class InternetConnection:
@@ -85,8 +86,8 @@ class InternetConnection:
 			conn.request("HEAD", "/ping")
 			self._avail = True
 		except Exception:
-			traceback.print_exc()
-			traceback.print_stack()
+			# traceback.print_exc()
+			# traceback.print_stack()
 			self._avail = False
 		finally:
 			conn.close()
@@ -253,11 +254,9 @@ class Routing:
 		self._share_pubkey_thread.start()
 
 	def stop(self):
-		print("6")
 		self._share_pubkey_thread.cancel()
-		print("7")
 		self._share_neighbors_thread.cancel()
-		print("8")
+
 	################################### NEIGHBORS
 	def neighbors(self, maxlevel: Union[int, None] = 5, include_root = False, jsonify = False) -> Union[list, str]:
 		if jsonify:
@@ -457,7 +456,6 @@ class UsbConnection:
 				pass
 			else:
 				return f"{self._usb.manufacturer} {self._usb.product} on {self._usb.bus}.{self._usb.address}"
-		# TODO ещё бы больше технических хар-к, а-ля шины
 		return "Device not initialized or not found!"
 
 	def __bool__(self):
@@ -534,6 +532,10 @@ class Keys:
 		#self._update_thread
 		self.last_renewed = None
 		self.renew_session_keys()
+		a = datetime.utcnow()
+		b = a.replace(day = a.day+1, hour=0, minute=0, second=0, microsecond=0)
+		rsk = RepeatTimer((b-a).total_seconds(), self.renew_session_keys)
+		rsk.start()
 
 	@property
 	def private_key(self):
@@ -583,7 +585,6 @@ class Keys:
 	def generate_session_key(self, public_key: ec.Point):
 		date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y%m%d")
 		return sha256(compress_point(self._private_key * public_key).encode() + date.encode()).digest()
-		# TODO подумать с utcnow
 
 	def renew_session_keys(self):
 		if not self.last_renewed or datetime.now().day - self.last_renewed.day >= 1:
@@ -593,8 +594,6 @@ class Keys:
 				self.last_renewed = datetime.now()
 				return True
 		return False
-
-	#TODO поток, срабатывающий раз в сутки, либо в 00:00, либо в первый заход за день, обновляющий сессионные ключи
 
 
 class Device:
@@ -642,15 +641,10 @@ class Device:
 
 	def stop(self):
 		# TODO сохранить содержимое очередей. подумать о порядке
-		print("4")
 		self._routing.stop()
-		print("888")
 		self._check_msg_thread.cancel()
-		print("9")
 		self._route_thread.cancel()
-		print("10")
 		self._device.close_device()
-		print("11")
 
 	def get_key(self, key):
 		return self._keys[key]

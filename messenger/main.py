@@ -188,8 +188,8 @@ class MessengerRoot(MDScreen):
             { "viewclass": "Item", "text": "Search date", "left_icon": "calendar", "height": dp(48),
               "on_release": lambda: self.chat_actions_callback("search_date",
                             self.ids.screen_manager.get_screen("chat_screen").current_chat), },
-            { "viewclass": "Item", "text": "Change theme", "left_icon": "brush", "height": dp(48),
-              "on_release": lambda: self.chat_actions_callback("theme",
+            { "viewclass": "Item", "text": "Change title", "left_icon": "brush", "height": dp(48),
+              "on_release": lambda: self.chat_actions_callback("title",
                             self.ids.screen_manager.get_screen("chat_screen").current_chat), },
             { "viewclass": "Item", "text": "Delete chat", "left_icon": "delete", "height": dp(48),
               "on_release": lambda: self.chat_actions_callback("delete",
@@ -262,8 +262,7 @@ class MessengerRoot(MDScreen):
                     # TODO test
                     #self.load_chats(force=True)
 
-            # print(changed)
-            for item in changed[::-1]: # начинаем с добавления наверх "более" старых новых сообщений
+            for item in changed[::-1]: # начинаем с добавления наверх "более старых" новых сообщений
                 self.ids.chats_container.remove_widget(item)
                 self.ids.chats_container.add_widget(item, -1)
 
@@ -385,6 +384,12 @@ class MessengerRoot(MDScreen):
     def chat_actions_callback(self, action, chat):
         self.chat_actions_menu.dismiss()
         print(action, chat)
+        if action == "title":
+            if not [c for c in self.ids.chat_box.children if isinstance(c, ChangeChatTitlePane)]:
+                self.ids.chat_box.add_widget(ChangeChatTitlePane(chat = chat,
+                                                                 toolbar_chat = self.ids.toolbar_chat,
+                                                                 chats_container = self.ids.chats_container), -1)
+
 
     def chat_actions_menu_callback(self, caller):
         self.chat_actions_menu.caller = caller
@@ -394,7 +399,7 @@ class MessengerRoot(MDScreen):
         if c and (m:= Message.get_or_none(Message.id == self.action_msg_id)):
             nm = Message.create(sender = self.dev_addr, recipient = c.get_id(), forwarded_from = m.forwarded_from or m.chat.get_id(),
                                 reply_to = 0, chat = c, message_hash = "")
-            nc = Content.create(message = nm, content_type = ContentType.TEXT, content = m.content.get().content) # TODO?
+            nc = Content.create(message = nm, content_type = ContentType.TEXT, content = m.content.get().content)
             nm.save()
             nc.save()
             app.send_message(nm.get_id())
@@ -413,7 +418,7 @@ class MessengerRoot(MDScreen):
             if chat:= Chat.get_or_none(Chat.id == current_chat):
                 m = Message.create(sender = self.dev_addr, recipient = current_chat, forwarded_from = forwarded_from,
                                    reply_to = reply_to, chat = chat, message_hash = "")
-                c = Content.create(message = m, content_type = ContentType.TEXT, content = content.encode('utf-8')) # TODO?
+                c = Content.create(message = m, content_type = ContentType.TEXT, content = content.encode('utf-8'))
                 m.save()
                 c.save()
                 if Message.get(chat.last_message_id).date_received.day != m.date_received.day:
@@ -443,6 +448,14 @@ class MessengerRoot(MDScreen):
             self.ids.screen_manager.get_screen("chat_screen").current_chat = chat
             self.ids.screen_manager.get_screen("chat_screen").current_page = 1
             self.ids.screen_manager.current = "chat_screen"
+
+    def open_searcher(self, caller):
+        if not [c for c in caller.parent.children if isinstance(c, SearchChatPane)]:
+            caller.parent.add_widget(SearchChatPane(chats_container = self.ids.chats_container,
+                                                    full_list = self.ids.chats_container.children), -1)
+        # self.ids.list_chats_area.add_widget(ReplyMessagePane(text = "Hello World",
+        #                                                      msgid = 1))
+
 
     def check_id(self, caller, text):
         try:
@@ -514,6 +527,41 @@ class ReplyMessagePane(MDBoxLayout):
     text = StringProperty()
     msgid = NumericProperty()
 
+class SearchChatPane(MDBoxLayout):
+    chats_container = ObjectProperty()
+    full_list = ListProperty()
+
+    def search_chat_callback(self, caller, text):
+        if res:= [chat for chat in self.full_list
+                  if text.lower() in (chat.display_name + chat.message + str(chat.chat) + hex(chat.chat)).lower()]:
+            self.chats_container.clear_widgets()
+            for chat in res:
+                self.chats_container.add_widget(chat)
+        if not text:
+            self.restore_chats(None, False)
+
+    def restore_chats(self, caller, close = True):
+        self.chats_container.clear_widgets()
+        for chat in self.full_list[::-1]:
+            self.chats_container.add_widget(chat)
+        if close:
+            self.parent.remove_widget(self)
+
+class ChangeChatTitlePane(MDBoxLayout):
+    chat = NumericProperty()
+    toolbar_chat = ObjectProperty()
+    chats_container = ObjectProperty()
+
+    def change_title(self, caller):
+        if chat_db:= Chat.get_or_none(Chat.id == self.chat):
+            chat_db.display_name = self.ids.title_field.text
+            chat_db.save()
+            self.toolbar_chat.title = self.ids.title_field.text
+            for i, chat in enumerate(self.chats_container.children):
+                if chat.chat == self.chat:
+                    self.chats_container.children[i].display_name = self.ids.title_field.text
+                    break
+        self.parent.remove_widget(self)
 
 class ChatDateHeader(MDBoxLayout):
     date = ObjectProperty()
@@ -555,7 +603,7 @@ class MessengerApp(MDApp):
 
     @property
     def dev_addr(self):
-        return self._device.dev_addr if self._device else 0xabcdf987 #0xacde73bf #None # TODO подумать
+        return self._device.dev_addr if self._device else 0
 
     def on_start(self):
         Builder.load_file('chatcard.kv')
@@ -568,11 +616,8 @@ class MessengerApp(MDApp):
         Clock.schedule_interval(self._connection_monitor, self._process_delay)
 
     def on_stop(self):
-        print("1")
         self._check_msg_thread.cancel()
-        print("2")
         self._device.stop()
-        print("999")
         db.close()
         sys.exit(0)
 
@@ -600,12 +645,11 @@ class MessengerApp(MDApp):
 
     def _connection_monitor(self, dt):
         a = self.root.ids.toolbar_messenger.right_action_items
-        if self._inet.available: a[0][0] = "assets/icons/conn_inet.png"
-        else: a[0][0] = "assets/icons/conn_inet_no.png"
-        if self._device.device_available: a[1][0] = "assets/icons/conn_lora.png"
-        else: a[1][0] = "assets/icons/conn_lora_no.png"
+        if self._inet.available: a[0][0] = os.path.join(settings.ASSETS_ICONS, "conn_inet.png")
+        else: a[0][0] = os.path.join(settings.ASSETS_ICONS, "conn_inet_no.png")
+        if self._device.device_available: a[1][0] = os.path.join(settings.ASSETS_ICONS, "conn_lora.png")
+        else: a[1][0] = os.path.join(settings.ASSETS_ICONS, "conn_lora_no.png")
         self.root.ids.toolbar_messenger.update_action_bar(self.root.ids.toolbar_messenger.children[1].children[0], a)
-        #TODO paths
 
 
     # def open_chat(self, caller, chat = None):
@@ -639,7 +683,6 @@ class MessengerApp(MDApp):
                           direction = NetPacketDirection.OUT,
                           raw_data = bytes.fromhex(message_db.message_hash if parts else '') + message.packet[j:j+100])
             # если фрагментация, то нужно как-то убедиться, что пакеты фрагменты принадлежат одному сообщению
-            # TODO проверить
             print("send_message fragment", a.packet)
             self._device.add_packet(a)
 
@@ -665,7 +708,7 @@ class MessengerApp(MDApp):
                                            forwarded_from = message.forwarded_from, reply_to = reply_to, chat = chat,
                                            message_hash = "")
                         #if not packet.is_fragmented:
-                        c = Content.create(message = m, content_type = packet.content_type, content = message.content.encode('utf-8')) # TODO?
+                        c = Content.create(message = m, content_type = packet.content_type, content = message.content.encode('utf-8'))
                         # else:
                         #     if not (c:= m.content.get_or_none()):
                         #         c = Content.create(message = m, content_type = packet.content_type, content = pickle.dumps([0]*packet.fragm_c), ready = False)

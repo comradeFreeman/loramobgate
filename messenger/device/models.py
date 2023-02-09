@@ -1,8 +1,10 @@
 import pickle
+import uuid
 
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
-from settings import DB_NAME, BROADCAST
+from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS
+from os import path
 from datetime import datetime, timedelta, timezone
 from playhouse.signals import pre_save, Model
 from enum import Enum
@@ -12,6 +14,20 @@ from typing import Union
 from hashlib import md5
 from kivy.utils import platform
 import pickle
+import random
+from PIL import ImageFont
+from PIL import Image
+from PIL import ImageDraw
+
+def generate_avatar(text):
+	name = path.join(ASSETS_AVATARS, f"{uuid.uuid4().hex}.png")
+	font = ImageFont.truetype(path.join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf"), 144)
+	img = Image.new("RGBA", (200,200),tuple(random.choices(range(256), k=3)))
+	draw = ImageDraw.Draw(img)
+	draw.text((50, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
+	draw = ImageDraw.Draw(img)
+	img.save(name)
+	return name
 
 #from zoneinfo import ZoneInfo
 #utc = #ZoneInfo('UTC')
@@ -138,7 +154,7 @@ class Chat(Model):
 	participants = DictField(column_name="participants")
 	last_message_id = IntegerField(column_name="last", null=True)
 	unread = IntegerField(column_name="unread", default=0)
-	avatar = CharField(default="assets/icons/anonymus.jpg")
+	avatar = CharField(default = "assets/avatars/anonymus.jpg")
 
 	class Meta:
 		table_name = 'chats'

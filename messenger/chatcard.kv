@@ -1,3 +1,5 @@
+#:import ASSETS_FONTS settings.ASSETS_FONTS
+#:import join os.path.join
 <ChatCard>:
     orientation: 'vertical'
     size_hint_y: None
@@ -46,7 +48,7 @@
                 MDLabel:
                     id: message
                     text: root.message
-                    font_name: "Roboto-Regular-Emoji.ttf"
+                    font_name: join(ASSETS_FONTS ,"Roboto-Regular-Emoji.ttf")
                     shorten: True
                     shorten_from: "right"
                     pos_hint: {"center_y": .4}

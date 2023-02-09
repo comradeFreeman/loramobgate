@@ -38,7 +38,7 @@ version = 0.5.2
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
 # hostpython3==3.10.0,
-requirements = sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20
+requirements = sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
@@ -184,7 +184,7 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,RECORD_AUD
 # Either form may be used, and assets need not be in 'source.include_exts'.
 # 1) android.add_assets = source_asset_relative_path
 # 2) android.add_assets = source_asset_path:destination_asset_relative_path
-android.add_assets = assets/test/avatars,assets/certs,device
+android.add_assets = assets/test/avatars,assets/certs,assets/fonts,assets/avatars,device
 
 # (list) Put these files or directories in the apk res directory.
 # The option may be used in three ways, the value may contain one or zero ':'

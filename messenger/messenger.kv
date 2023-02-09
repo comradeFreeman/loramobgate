@@ -1,3 +1,62 @@
+#:import ASSETS_FONTS settings.ASSETS_FONTS
+#:import ASSETS_ICONS settings.ASSETS_ICONS
+#:import join os.path.join
+
+<SearchChatPane>:
+    spacing: "3dp"
+    size_hint_y: .1
+    id: input_panel
+    padding: "10dp"
+
+    MDLabel:
+        text: "Search chat:"
+        pos_hint: {"center_y": .5}
+        size_hint_x: None
+
+    MDTextField:
+        id: search_field
+        mode: "round"
+        font_name: join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf")
+        pos_hint: {"center_y": .45}
+        text_color_normal: "black"
+        text_color_focus: "black"
+        set_text: root.search_chat_callback
+
+    MDIconButton:
+        icon: "close"
+        on_release: root.restore_chats(self)
+        pos_hint: {"center_y": .5}
+
+<ChangeChatTitlePane>:
+    spacing: "3dp"
+    size_hint_y: .1
+    id: input_panel
+    padding: "10dp", "20dp", "10dp", "20dp"
+
+    MDLabel:
+        text: "Change chat title:"
+        pos_hint: {"center_y": .5}
+        multiline: False
+        size_hint_x: .4
+
+    MDTextField:
+        id: title_field
+        mode: "round"
+        font_name: join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf")
+        pos_hint: {"center_y": .45}
+        text_color_normal: "black"
+        text_color_focus: "black"
+
+    MDIconButton:
+        icon: "check"
+        on_release: root.change_title(self)
+        pos_hint: {"center_y": .5}
+
+    MDIconButton:
+        icon: "close"
+        on_release: root.parent.remove_widget(root)
+        pos_hint: {"center_y": .5}
+
 <ReplyMessagePane>:
     id: reply_pane
     padding: "10dp", "5dp", "5dp", "5dp"
@@ -72,9 +131,10 @@ MessengerRoot:
                         id: toolbar_messenger
                         title: "LoRa Messenger"
                         left_action_items: [["menu", lambda x: nav_drawer.set_state("open")]]
-                        right_action_items: [["assets/icons/conn_inet_no.png"], ["assets/icons/conn_lora_no.png", app.do], ["magnify", lambda x: nav_drawer.set_state("open")]]
+                        right_action_items: [[join(ASSETS_ICONS, "conn_inet_no.png")], [join(ASSETS_ICONS, "conn_lora_no.png")], ["magnify", lambda x: root.open_searcher(self)]]
                     MDBoxLayout:
                         orientation: 'vertical'
+                        id: "list_chats_area"
                         ScrollView:
                             #on_touch_move: sum(self.vbar) == 1.0 and root.load_chats(self)
                             MDBoxLayout:
@@ -91,7 +151,7 @@ MessengerRoot:
                     id: toolbar_settings
                     title: "Settings"
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
-                    right_action_items: [["assets/icons/usual_connections.png", app.do2]]
+                    right_action_items: [[join(ASSETS_ICONS, "usual_connections.png"), app.do2]]
                 MDBoxLayout:
                     orientation: "vertical"
                     MDLabel:
@@ -157,6 +217,7 @@ MessengerRoot:
                 on_leave: input_field.text = ""
 
                 MDBoxLayout:
+                    id: chat_box
                     orientation: "vertical"
                     MyMDTopAppBar:
                         id: toolbar_chat
@@ -189,7 +250,7 @@ MessengerRoot:
                         MDTextField:
                             id: input_field
                             mode: "round"
-                            font_name: "Roboto-Regular-Emoji.ttf"
+                            font_name: join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf")
                             #do_wrap: False
                             #multiline: True
                             pos_hint: {"center_y": .45}
@@ -217,7 +278,7 @@ MessengerRoot:
                 id: nav_profile
                 title: "Lain"
                 text: "0x00000000"
-                source: "assets/icons/me2.png"
+                source: join(ASSETS_ICONS, "me2.png")
                 spacing: "8dp"
                 padding: "12dp", "24dp", 0, "48dp"
                 title_font_size: "45sp"
@@ -231,7 +292,7 @@ MessengerRoot:
                 text: "New chat"
                 on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "new_chat_screen")
             MDNavigationDrawerItem:
-                icon: "assets/icons/settings-icon.png"
+                icon: join(ASSETS_ICONS, "settings-icon.png")
                 text: "Settings"
                 on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
             MDNavigationDrawerDivider:

@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from typing import Optional
-import lmgserverapi
+import messengerapi
+import networkapi
 
 app = FastAPI()#root_path="/api/v1") # docs_url=None, redoc_url=None)
-app.mount(f"/v{lmgserverapi.version}{lmgserverapi.api_path}", lmgserverapi.serverapp)
+app.mount(f"/v{messengerapi.version}{messengerapi.api_path}", messengerapi.serverapp)
+app.mount(f"/v{networkapi.version}{networkapi.api_path}", networkapi.serverapp)
 
 class Item(BaseModel):
 	name: str

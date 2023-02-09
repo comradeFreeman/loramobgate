@@ -11,3 +11,7 @@ LOAD_MESSAGES_PERIOD = 10
 API_URL = 'https://api.lain-is.online/v1/'
 TTL_NEIGHBOR = 30
 TTL_TRANSACTION = 36
+ASSETS_AVATARS = "./assets/avatars"
+ASSETS_ICONS = "./assets/icons"
+ASSETS_CERTS = "./assets/certs"
+ASSETS_FONTS = "./assets/fonts"
