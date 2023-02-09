@@ -3,7 +3,7 @@ import uuid
 
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
-from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS
+from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
 from os import path
 from datetime import datetime, timedelta, timezone
 from playhouse.signals import pre_save, Model
@@ -24,7 +24,7 @@ def generate_avatar(text):
 	font = ImageFont.truetype(path.join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf"), 144)
 	img = Image.new("RGBA", (200,200),tuple(random.choices(range(256), k=3)))
 	draw = ImageDraw.Draw(img)
-	draw.text((50, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
+	draw.text((55, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
 	draw = ImageDraw.Draw(img)
 	img.save(name)
 	return name
@@ -154,16 +154,18 @@ class Chat(Model):
 	participants = DictField(column_name="participants")
 	last_message_id = IntegerField(column_name="last", null=True)
 	unread = IntegerField(column_name="unread", default=0)
-	avatar = CharField(default = "assets/avatars/anonymus.jpg")
+	avatar = CharField(default = path.join(ASSETS_AVATARS,DEFAULT_AVATAR))
 
 	class Meta:
 		table_name = 'chats'
 		database = db
 
-# @pre_save(sender = Chat)
-# def update_last(model_class, chat_obj: Chat, created):
-# 	#if not created:
-# 	chat_obj.last_message_id = chat_obj.messages.select().order_by(Message.id.desc()).get_or_none()
+@pre_save(sender = Chat)
+def update_avatar(model_class, chat_obj: Chat, created):
+	if not created: # and (DEFAULT_AVATAR in chat_obj.avatar or "custom" not in chat_obj.avatar):
+		chat_prev = Chat.get(Chat.id == chat_obj.id)
+		if chat_obj.display_name != chat_prev.display_name and "custom" not in chat_obj.avatar:
+			chat_obj.avatar = generate_avatar(chat_obj.display_name[0])
 
 
 class Message(Model):
