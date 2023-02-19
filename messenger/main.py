@@ -220,7 +220,7 @@ class MessengerRoot(MDScreen):
                 last_message: Message = Message.get_or_none(Message.id == chat.last_message_id)
                 self.ids.chats_container.add_widget(ChatCard(
                         chat = chat.id,
-                        display_name = chat.display_name,
+                        display_name = f"[b]{chat.display_name}[/b]",
                         message = last_message.content.get().content.decode('utf-8') if last_message else "",
                         avatar = chat.avatar,
                         time = last_message.date_received.astimezone(localtz).strftime("%H:%M"
@@ -249,7 +249,7 @@ class MessengerRoot(MDScreen):
                     last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
                         chat = chat_db.id,
-                        display_name = chat_db.display_name,
+                        display_name = f"[b]{chat.display_name}[/b]",
                         message = last_message.content.get().content.decode('utf-8') if last_message else "",
                         avatar = chat_db.avatar,
                         time = last_message.date_received.astimezone(localtz).strftime("%H:%M"

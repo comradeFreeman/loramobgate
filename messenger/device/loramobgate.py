@@ -4,7 +4,7 @@ import threading
 from time import sleep
 import usb.util as u
 #####
-from parse_settings import SettingsParser
+#from parse_settings import SettingsParser
 from typing import Union
 import queue
 from collections.abc import Iterable
@@ -26,18 +26,21 @@ import tinyec.registry as reg
 from pure_salsa20 import salsa20_xor, xsalsa20_xor
 from os import urandom
 #####
-import settings as settings
+import m_settings as settings
 import http.client as http_client
 from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
-from models import Message, Content
+#from models import Message, Content
 from hashlib import sha256, md5
 from anytree.exporter import JsonExporter
-from os import path
+from os import path, environ
 
 
-from kivy.utils import platform
+#from kivy.utils import platform
+platform = "unknown"
 
-if platform == "android":
+#if platform == "android":
+if 'ANDROID_ARGUMENT' in environ: # <- equivalent
+	platform = "android"
 	from android.permissions import request_permissions, Permission
 	request_permissions([Permission.WRITE_EXTERNAL_STORAGE,
 						 Permission.READ_EXTERNAL_STORAGE,
@@ -206,7 +209,7 @@ class NetPacket:
 		if self.is_valid:
 			# если мы успешно спарсили пакет и это пакет нашего формата
 			self.update()
-			return self._packet
+			return bytes(self._packet)
 		elif self.source_packet:
 			# иначе отдаём то, что пришло изначально пришло на вход
 			return self.source_packet

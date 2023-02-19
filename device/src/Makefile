@@ -17,16 +17,10 @@ ARDMK_DIR         = /usr/share/arduino
 ### Path to the Arduino application and resources directory.
 ### or on Linux: (remove the one you don't want)
 ARDUINO_DIR       = ../libs
-#/home/amnesia/.arduino15/packages/MiniCore
 BOARDS_TXT        = $(ARDUINO_DIR)/minicore/avr/boards.txt
-#$(ARDUINO_DIR)/hardware/avr/2.1.3/boards.txt
 ARDUINO_VAR_PATH  = $(ARDUINO_DIR)/minicore/avr/variants
-#$(ARDUINO_DIR)/hardware/avr/2.1.3/variants
 ARDUINO_CORE_PATH  = ../libs/minicore/avr/cores/MCUdude_corefiles
-#/home/amnesia/.arduino15/packages/MiniCore/hardware/avr/2.1.3/cores/MCUdude_corefiles
-#ARDUINO_PACKAGE_DIR = $(HOME)/.arduino15/packages
 ARDUINO_PLATFORM_LIB_PATH = ../libs/minicore/avr/libraries
-#/home/amnesia/.arduino15/packages/MiniCore/hardware/avr/2.1.3/libraries
 ARDUINO_LIBS = usbdrv lorarf ringbuffer SPI
 
 ### USER_LIB_PATH
@@ -73,7 +67,6 @@ CXXFLAGS_STD      = -std=gnu++17
 ### CXXFLAGS
 ### Flags you might want to set for debugging purpose. Comment to stop.
 
-#CXXFLAGS         += -pedantic -Wall -Wextra 
 CXXFLAGS          = -g -w -Wall -Wextra -Wno-narrowing -ffunction-sections -fdata-sections -fno-threadsafe-statics
 
 ### MONITOR_PORT
@@ -94,4 +87,7 @@ include $(ARDMK_DIR)/Arduino.mk
 
 ISP_PROG          = usbasp
 ISP_EEPROM        = 1
-AVRDUDE_ISP_BAUDRATE = 375000
+AVRDUDE_ARD_PROGRAMMER = usbasp
+AVRDUDE_ARD_BAUDRATE = 375000
+AVRDUDE      = /usr/bin/avrdude
+AVRDUDE_CONF      = /etc/avrdude.conf

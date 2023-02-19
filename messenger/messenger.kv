@@ -1,5 +1,6 @@
 #:import ASSETS_FONTS settings.ASSETS_FONTS
 #:import ASSETS_ICONS settings.ASSETS_ICONS
+#:import FONT settings.FONT
 #:import join os.path.join
 
 <SearchChatPane>:
@@ -16,7 +17,7 @@
     MDTextField:
         id: search_field
         mode: "round"
-        font_name: join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf")
+        font_name: join(ASSETS_FONTS, FONT)
         pos_hint: {"center_y": .45}
         text_color_normal: "black"
         text_color_focus: "black"
@@ -42,7 +43,7 @@
     MDTextField:
         id: title_field
         mode: "round"
-        font_name: join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf")
+        font_name: join(ASSETS_FONTS, FONT)
         pos_hint: {"center_y": .45}
         text_color_normal: "black"
         text_color_focus: "black"
@@ -250,7 +251,7 @@ MessengerRoot:
                         MDTextField:
                             id: input_field
                             mode: "round"
-                            font_name: join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf")
+                            font_name: join(ASSETS_FONTS, FONT)
                             #do_wrap: False
                             #multiline: True
                             pos_hint: {"center_y": .45}

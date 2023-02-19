@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Request, Depends, Response, HTTPException
-from typing import Optional
+from typing import Optional, Union
 from pydantic import BaseModel
 from typing import Optional
-import settings
+import s_settings as settings
 import json
 from uuid import uuid4
 import os
@@ -20,4 +20,8 @@ api_path="/lmg/network"
 
 @serverapp.get("/items/")
 async def read_items(token: str = Depends(oauth2_scheme)):
-	return {"token": token} 
+	return {"token": token}
+
+@serverapp.post("/neighbors/")
+async def add_neighbors(item: Union[list, int]):
+	print(item)

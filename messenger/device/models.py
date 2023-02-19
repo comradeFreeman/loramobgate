@@ -3,7 +3,7 @@ import uuid
 
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
-from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
+from m_settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
 from os import path
 from datetime import datetime, timedelta, timezone
 from playhouse.signals import pre_save, Model
@@ -24,7 +24,7 @@ def generate_avatar(text):
 	font = ImageFont.truetype(path.join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf"), 144)
 	img = Image.new("RGBA", (200,200),tuple(random.choices(range(256), k=3)))
 	draw = ImageDraw.Draw(img)
-	draw.text((55, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
+	draw.text((50, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
 	draw = ImageDraw.Draw(img)
 	img.save(name)
 	return name
