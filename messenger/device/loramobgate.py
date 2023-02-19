@@ -26,7 +26,7 @@ import tinyec.registry as reg
 from pure_salsa20 import salsa20_xor, xsalsa20_xor
 from os import urandom
 #####
-import m_settings as settings
+import settings as settings
 import http.client as http_client
 from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
 #from models import Message, Content
@@ -601,11 +601,11 @@ class Keys:
 
 class Device:
 	def __init__(self, messenger_queue: queue.Queue, inet: InternetConnection,
-				 vid=settings.VID, pid=settings.PID, process_delay=10, check_delay=0.8):
+				 vid=settings.VID, pid=settings.PID, process_delay=10, check_delay=0.8, force_radio = True):
 		self._device = UsbConnection(vid, pid)
 		self._dev_info, self._dev_addr, _ = self.retrieve_info()
 		#
-		self.force_radio = True
+		self.force_radio = force_radio
 		self._inet = inet
 		#
 		self._messenger_queue = messenger_queue
@@ -810,13 +810,14 @@ class Device:
 								# переслать сообщение от ЛоРа девайсов в сеть, если она доступна
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
+						print(self.force_radio, self._inet.available)
 						if self.force_radio or not self._inet.available:
 							print("About to transmit ", packet.packet)
 							if not self.transmit_data(packet):
 								self._packets_queue.put(packet)
 							sleep(.2)
 						else:
-							pass
+							print("Internet transmit")
 					# # запомнили на время, что мы что-то приняли или отправили
 
 

@@ -4,6 +4,7 @@ import os
 import traceback
 sys.path.insert(0, os.path.join(os.path.dirname(__file__) ,"device"))
 import settings
+from settings import settings_options
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -47,6 +48,7 @@ import declarations as s
 import queue
 from hashlib import md5
 from math import ceil
+from kivy.uix.settings import SettingsWithSidebar, SettingsWithNoMenu, SettingsWithSpinner
 
 #from zoneinfo import ZoneInfo
 #utc = ZoneInfo('UTC')
@@ -249,7 +251,7 @@ class MessengerRoot(MDScreen):
                     last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
                         chat = chat_db.id,
-                        display_name = f"[b]{chat.display_name}[/b]",
+                        display_name = f"[b]{chat_db.display_name}[/b]",
                         message = last_message.content.get().content.decode('utf-8') if last_message else "",
                         avatar = chat_db.avatar,
                         time = last_message.date_received.astimezone(localtz).strftime("%H:%M"
@@ -588,18 +590,11 @@ class MessengerApp(MDApp):
         super(MessengerApp,self).__init__(**kwargs)
         Window.bind(on_keyboard = self.keyboard_events)
         Window.softinput_mode = "pan"
-
         self._messenger_queue = queue.Queue()
         self._process_delay = settings.PROCESS_DELAY
         self._inet = InternetConnection()
         self._device: Device = None
         self._check_msg_thread = RepeatTimer(self._process_delay, self._process_messages)
-        #self._monitor_conn_thread = RepeatTimer(self._process_delay, self._connection_monitor)
-
-        #
-        # self._ui_queue = queue.Queue
-        # self._ui_monitor_thread = RepeatTimer(self._process_delay, self._ui_monitor)
-        # self._ui_monitor_thread.start()
 
     @property
     def dev_addr(self):
@@ -609,17 +604,42 @@ class MessengerApp(MDApp):
         Builder.load_file('chatcard.kv')
         Builder.load_file('messagecard.kv')
         self.root.load_chats(None)
-        self._device = Device(messenger_queue = self._messenger_queue, inet = self._inet)
+        self._device = Device(messenger_queue = self._messenger_queue, inet = self._inet,
+                              force_radio = True) #self.config.get('appsettings', 'force_lora'))
         self.root.dev_addr = self.dev_addr
         self.root.ids.nav_profile.text = hex(self.dev_addr)
         self._check_msg_thread.start()
         Clock.schedule_interval(self._connection_monitor, self._process_delay)
+        #
+        self.settings_cls = SettingsWithSpinner
+        #self.use_kivy_settings = False
+        #self.config.get("appsettings", "force_lora")
 
     def on_stop(self):
         self._check_msg_thread.cancel()
         self._device.stop()
         db.close()
         sys.exit(0)
+
+    def build_config(self, config):
+        config.setdefaults('appsettings', {
+            'force_lora': True,
+            'poll_interval': settings.PROCESS_DELAY,
+            'tx_power': settings.TX_POWER,
+            'ui_chats_interval': settings.LOAD_CHATS_PERIOD,
+            'ui_messages_interval': settings.LOAD_MESSAGES_PERIOD,
+            'optionsexample': 'option2',
+            'stringexample': 'some_string',
+            'pathexample': '/some/path'})
+
+    def build_settings(self, settings):
+        settings.add_json_panel('App Settings',
+                                self.config,
+                                data=settings_options)
+
+    def on_config_change(self, config, section, key, value):
+        if key == "force_lora":
+            self._device.force_radio = True if value == "1" else False
 
 
     def do(self, caller: ActionTopAppBarButton):

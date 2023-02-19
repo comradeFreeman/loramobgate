@@ -3,7 +3,7 @@ import uuid
 
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
-from m_settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
+from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
 from os import path
 from datetime import datetime, timedelta, timezone
 from playhouse.signals import pre_save, Model

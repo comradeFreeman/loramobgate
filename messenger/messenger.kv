@@ -295,5 +295,6 @@ MessengerRoot:
             MDNavigationDrawerItem:
                 icon: join(ASSETS_ICONS, "settings-icon.png")
                 text: "Settings"
-                on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
+                #on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
+                on_release: app.open_settings()
             MDNavigationDrawerDivider:
