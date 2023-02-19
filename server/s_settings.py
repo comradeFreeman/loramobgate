@@ -10,3 +10,5 @@ REDIS_DATA_URL = "redis://localhost:6380"
 REDIS_CACHE_URL = "redis://localhost:6379"
 
 TTL_NETPACKET = 86400
+VERSION = 1
+API_PATH = "/lmg/messenger"
