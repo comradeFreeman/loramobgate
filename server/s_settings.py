@@ -9,7 +9,8 @@ REDIS_DATA_URL = "redis://localhost:6380"
 # This Redis instance is tuned for cache performance.
 REDIS_CACHE_URL = "redis://localhost:6379"
 
-TTL_NETPACKET = 86400
+TTL_NETPACKET_OTHER = 86400
+TTL_NETPACKET_BROADCAST = 120
 VERSION = 1
 API_PATH = "/lmg"
 BROADCAST = 0xffffffff

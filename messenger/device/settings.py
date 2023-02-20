@@ -14,9 +14,9 @@ LOAD_MESSAGES_PERIOD = 10
 #API_URL = 'https://api.lain-is.online/v1/lmg'
 API_URL = "https://127.0.0.1:8000/v1/lmg"
 API_HOST = "127.0.0.1:8000"
-TOKEN_INTERVAL = 60
 #API_URL = "/v1/lmg"
 PACKET_ENDPOINT = "/device/packets/"
+API_POLL_PERIOD = 10
 TTL_NEIGHBOR = 30
 TTL_TRANSACTION = 36
 ASSETS_AVATARS = "./assets/avatars"
@@ -40,13 +40,18 @@ settings_options = json.dumps([
 	 'title': 'Process interval',
 	 'desc': 'How often device have to process new messages',
 	 'section': 'appsettings',
-	 'key': 'poll_interval'},
+	 'key': 'process_interval'},
 	{'type': 'numeric',
 	 'title': 'TX Power',
 	 'desc': 'Output power of device. Note, that smaller power gives smaller distance your data can be received '
 			 'by another users. Change this parameter carefully!',
 	 'section': 'appsettings',
 	 'key': 'tx_power'},
+	{'type': 'numeric',
+	 'title': 'Poll interval',
+	 'desc': 'How often to poll packets from server (if Internet available)',
+	 'section': 'appsettings',
+	 'key': 'inet_poll_interval'},
 	{'type': 'title',
 	 'title': 'Messenger settings (Note: applied after app restart)'},
 	{'type': 'numeric',
@@ -59,6 +64,7 @@ settings_options = json.dumps([
 	 'desc': 'How often to renew messages in chat',
 	 'section': 'appsettings',
 	 'key': 'ui_messages_interval'},
+
 
 	{'type': 'options',
 	 'title': 'An options setting',

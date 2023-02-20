@@ -53,5 +53,6 @@ class NetPacketIP(HashModel):
 	recipient: int = Field(index = True)
 	timestamp: str = Field(index = True)
 	packet: str = Field(index = True)
+	# broadcast: bool = Field(default = False)
 
 ###

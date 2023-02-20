@@ -32,8 +32,8 @@ import traceback
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from s_settings import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, TTL_NETPACKET,\
-	VERSION, REDIS_CACHE_URL, REDIS_DATA_URL, API_PATH, BROADCAST
+from s_settings import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, TTL_NETPACKET_OTHER, \
+	VERSION, REDIS_CACHE_URL, REDIS_DATA_URL, API_PATH, BROADCAST, TTL_NETPACKET_BROADCAST
 from sqlalchemy.orm import Session
 from models import Base, User, Token, TokenData, UserDB, NetPacketIP
 from db import SessionLocal, engine
@@ -57,9 +57,6 @@ finally:
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-
-
-# "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class Item(BaseModel):
@@ -147,7 +144,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 	access_token = create_access_token(
 		data={"sub": hex(user.dev_addr)}, expires_delta=access_token_expires
 	)
-	return {"access_token": access_token, "token_type": "bearer"}
+	return {"access_token": access_token, "token_type": "bearer", "expires_in": access_token_expires.seconds}
 
 @serverapp.get("/users/me/", response_model=User)
 async def read_users_me(current_user: UserDB = Depends(get_current_active_user)):
@@ -157,9 +154,9 @@ async def read_users_me(current_user: UserDB = Depends(get_current_active_user))
 async def new_packet(net_packet: NetPacketIP, current_user: UserDB = Depends(get_current_active_user)):
 	if not NetPacketIP.find(NetPacketIP.packet == net_packet.packet).all():
 		net_packet.save()
-		net_packet.expire(TTL_NETPACKET)
+		net_packet.expire(TTL_NETPACKET_BROADCAST if net_packet.recipient == BROADCAST else TTL_NETPACKET_OTHER)
 	else:
-		return -1
+		return False
 		# ret error дублирование
 
 @serverapp.get("/device/packets/count")
@@ -173,8 +170,10 @@ async def count_packets(current_user: UserDB = Depends(get_current_active_user))
 async def get_packets(current_user: UserDB = Depends(get_current_active_user), offset: int = 0, limit: int = 10):
 	new = NetPacketIP.find((NetPacketIP.recipient == current_user.dev_addr) |
 						   (NetPacketIP.recipient == BROADCAST)).page(offset = offset, limit = limit)
-	for np in new: NetPacketIP.delete(np.pk)
-	return {"count": len(new), "offset": offset, "messages": new}
+	for np in new:
+		if np.recipient != BROADCAST:
+			NetPacketIP.delete(np.pk)
+	return {"count": len(new), "offset": offset, "packets": new}
 
 @serverapp.post("/network/neighbors")
 async def add_neighbors(item: Union[list, int], current_user: UserDB = Depends(get_current_active_user)):

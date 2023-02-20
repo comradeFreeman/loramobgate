@@ -225,64 +225,61 @@ class InternetConnection:
 		self._password = password
 		self._token = None
 		self._check_inet_thread = RepeatTimer(settings.PING_PERIOD, self._check_inet)
-		self._token_thread = RepeatTimer(settings.TOKEN_INTERVAL, self._update_token)
+		self._token_update_interval = 60
+		self._token_thread = None
 		self._check_inet_thread.start()
 		self._update_token()
-		self._token_thread.start()
 
 	@property
 	def available(self):
 		return self._avail
 
 	def _check_inet(self):
-		# print(ssl.get_default_verify_paths())
-		# print(context.get_ca_certs())
-		#conn = http_client.HTTPSConnection(settings.PING_HOST, context = context, timeout=5)
 		try:
 			r = requests.head(settings.PING_URL, verify = False)
-			#conn.request("HEAD", "/ping")
 			if r.status_code == 200:
 				self._avail = True
 				return
 			raise
 		except Exception:
-			traceback.print_exc()
-			traceback.print_stack()
 			self._avail = False
-		# finally:
-		# 	conn.close()
 
 	def _update_token(self):
-		if self._avail:
-			try:
-				r = requests.post(settings.API_URL + "/token", data = {"username": self._username,
-																	   "password": self._password},
+		try:
+			r = requests.post(settings.API_URL + "/token", data = {"username": self._username, "password": self._password},
 								  verify = False)
-				self._token = r.json().get("access_token")
-			except:
-				traceback.print_exc()
-				self._token = None
+		except: self._token_update_interval = 60
+		else:
+			self._avail = True
+			self._token = r.json().get("access_token")
+			self._token_update_interval = r.json().get("expires_in")
+		finally:
+			if not self._token_thread:
+				self._token_thread = RepeatTimer(self._token_update_interval, self._update_token) 
+				self._token_thread.start()
 
-	def send(self, packet: NetPacket):
-		if self._token:
-			try:
-				# conn = http_client.HTTPSConnection(settings.API_HOST, context = context, timeout=5)
-				requests.post(settings.API_URL + settings.PACKET_ENDPOINT, data = json.dumps({
+	def request(self, uri = "/", packet: NetPacket = None):
+		try:
+			func = requests.post if packet else requests.get
+			r = func(settings.API_URL + uri, data = json.dumps({
 					"sender": packet.src_addr,
 					"recipient": packet.dst_addr,
 					"timestamp": datetime.now().replace(tzinfo = ltz).isoformat(),
 					"packet": packet.packet.hex()
-				}),
-					headers = {"Authorization": f"Bearer {self._token}"},
-					verify = False)
-
-			except:
-				traceback.print_exc()
-			else:
-				return True
+			}) if packet else None,
+				headers = {"Authorization": f"Bearer {self._token}"},
+				verify = False)
+			if r.status_code == 401: # unauthorized
+				self._update_token()
+			if r.status_code != 200:
+				raise
+		except:
+			traceback.print_exc()
+		else:
+			self._avail = True
+			return r.json()
 		return False
-		# finally:
-		# 	conn.close()
+
 
 class Routing:
 	dev_addr = 0
@@ -353,7 +350,6 @@ class Routing:
 				direction = NetPacketDirection.OUT
 			))
 
-
 	################################### NETWORK
 	def process_network_event(self, packet):
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
@@ -414,8 +410,6 @@ class Routing:
 	публичным ключом. Путём ретрансляций нужный устройству А публичный ключ устройства Б доходит до А и в качестве 
 	приятного бонуса бОльшая часть сети тоже знает этот публичный ключ.
 	"""
-
-
 
 	################################### TRANSACTIONS
 	def new_transaction_event(self, packet: NetPacket, custom_ttl = None):
@@ -655,6 +649,7 @@ class Device:
 		self._process_delay = process_delay
 		self._check_delay = check_delay
 		self._check_msg_thread = RepeatTimer(self._check_delay, self._check_incoming_msg)
+		self._check_msg_thread_inet = RepeatTimer(settings.API_POLL_PERIOD, self._check_incoming_msg_inet)
 		self._route_thread = RepeatTimer(self._process_delay, self._route_net_packets)
 		self._packets_queue = queue.Queue()
 		self._keys = Keys(private_key=_, packets_queue = self._packets_queue)
@@ -689,6 +684,7 @@ class Device:
 		# TODO сохранить содержимое очередей. подумать о порядке
 		self._routing.stop()
 		self._check_msg_thread.cancel()
+		self._check_msg_thread_inet.cancel()
 		self._route_thread.cancel()
 		self._device.close_device()
 
@@ -746,6 +742,8 @@ class Device:
 				self._route_thread.start()
 			if not self._check_msg_thread.is_alive():
 				self._check_msg_thread.start()
+			if not self._check_msg_thread_inet.is_alive():
+				self._check_msg_thread_inet.start()
 
 
 	# u.ENDPOINT_IN      device to host | requests: Mega       -> PC   (e.g. retrieve message from buffer)
@@ -758,7 +756,7 @@ class Device:
         the data payload to send_to_device, and it must be a sequence type convertible
         to an array object. In this case, the return value is the number
         of bytes written in the data payload. For device to host requests
-        (IN), data_or_wLength is either the wLength parameter of thsdfdsfsfsdfsdfsddfsfe control
+        (IN), data_or_wLength is either the wLength parameter of the control
         request specifying the number of bytes to read in data payload, and
         the return value is an array object with data read, or an array
         object which the data will be read to, and the return value is the
@@ -790,6 +788,16 @@ class Device:
 	def add_packet(self, packet: NetPacket):
 		if isinstance(packet, NetPacket):
 			self._packets_queue.put(packet)
+
+	def _check_incoming_msg_inet(self):
+		try:
+			if answer:= self._inet.request(settings.PACKET_ENDPOINT):
+				for net_packet_ip in answer['packets']:
+					print(net_packet_ip)
+					if (packet:= NetPacket(source_packet = bytes.fromhex(net_packet_ip['packet']))).is_valid:
+						self._packets_queue.put(packet)
+		except:
+			traceback.print_exc()
 
 	# при отправке заносить хэш сумму пакета в self._last_transactions и новый ttl
 	# также можно при поступлении уже отправленного пакета отклонять его. но тогда вероятно нужен timestamp
@@ -860,7 +868,7 @@ class Device:
 								self._packets_queue.put(packet)
 							sleep(.2)
 						else:
-							if not self._inet.send(packet):
+							if not self._inet.request(settings.PACKET_ENDPOINT, packet):
 								self._packets_queue.put(packet)
 							print("Internet transmit")
 					# # запомнили на время, что мы что-то приняли или отправили
