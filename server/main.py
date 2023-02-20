@@ -14,6 +14,7 @@ from redis_om import HashModel, NotFoundError, Migrator
 from redis_om import get_redis_connection
 
 import sys
+
 sys.path.append("device")
 from fastapi import FastAPI, Request, Depends, Response, HTTPException, status
 from typing import Optional
@@ -32,7 +33,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from s_settings import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, TTL_NETPACKET,\
-	VERSION, REDIS_CACHE_URL, REDIS_DATA_URL, API_PATH
+	VERSION, REDIS_CACHE_URL, REDIS_DATA_URL, API_PATH, BROADCAST
 from sqlalchemy.orm import Session
 from models import Base, User, Token, TokenData, UserDB, NetPacketIP
 from db import SessionLocal, engine
@@ -66,7 +67,7 @@ class Item(BaseModel):
 	price: float
 	is_offer: Optional[bool] = None
 
-@serverapp.on_event("startup")
+@app.on_event("startup")
 async def startup():
 	r = redis.from_url(REDIS_CACHE_URL, encoding="utf8", decode_responses=True)
 	FastAPICache.init(RedisBackend(r), prefix="fastapi-cache")
@@ -152,23 +153,33 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def read_users_me(current_user: UserDB = Depends(get_current_active_user)):
 	return current_user
 
-@serverapp.post("/messenger/messages/send/")
-async def new_message(net_packet: NetPacketIP, current_user: UserDB = Depends(get_current_active_user)):
-	net_packet.save()
-	net_packet.expire(TTL_NETPACKET)
+@serverapp.post("/device/packets/")
+async def new_packet(net_packet: NetPacketIP, current_user: UserDB = Depends(get_current_active_user)):
+	if not NetPacketIP.find(NetPacketIP.packet == net_packet.packet).all():
+		net_packet.save()
+		net_packet.expire(TTL_NETPACKET)
+	else:
+		return -1
+		# ret error дублирование
 
-@serverapp.get("/messenger/messages/count/")
+@serverapp.get("/device/packets/count")
 @cache(expire=10)
-async def count_messages(current_user: UserDB = Depends(get_current_active_user)):
+async def count_packets(current_user: UserDB = Depends(get_current_active_user)):
 	# Для поиска нужен модуль RediSearch, который есть в Redis Stack Server
-	return {"incoming": NetPacketIP.find(NetPacketIP.recipient == current_user.dev_addr).count()}
+	return {"incoming": NetPacketIP.find((NetPacketIP.recipient == current_user.dev_addr) |
+										 (NetPacketIP.recipient == BROADCAST)).count()}
 
-@serverapp.get("/messenger/messages/get/")
-async def get_messages(current_user: UserDB = Depends(get_current_active_user), offset: int = 0, limit: int = 10):
-	new = NetPacketIP.find(NetPacketIP.recipient == current_user.dev_addr).page(offset = offset, limit = limit)
+@serverapp.get("/device/packets/")
+async def get_packets(current_user: UserDB = Depends(get_current_active_user), offset: int = 0, limit: int = 10):
+	new = NetPacketIP.find((NetPacketIP.recipient == current_user.dev_addr) |
+						   (NetPacketIP.recipient == BROADCAST)).page(offset = offset, limit = limit)
 	for np in new: NetPacketIP.delete(np.pk)
 	return {"count": len(new), "offset": offset, "messages": new}
 
-@serverapp.post("/network/neighbors/")
-async def add_neighbors(item: Union[list, int]):
+@serverapp.post("/network/neighbors")
+async def add_neighbors(item: Union[list, int], current_user: UserDB = Depends(get_current_active_user)):
 	print(item)
+
+@serverapp.get("/network/stats")
+async def net_stats():
+	return Response(status_code=200)

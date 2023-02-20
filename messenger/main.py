@@ -49,6 +49,7 @@ import queue
 from hashlib import md5
 from math import ceil
 from kivy.uix.settings import SettingsWithSidebar, SettingsWithNoMenu, SettingsWithSpinner
+from kivy.config import ConfigParser
 
 #from zoneinfo import ZoneInfo
 #utc = ZoneInfo('UTC')
@@ -592,7 +593,7 @@ class MessengerApp(MDApp):
         Window.softinput_mode = "pan"
         self._messenger_queue = queue.Queue()
         self._process_delay = settings.PROCESS_DELAY
-        self._inet = InternetConnection()
+        #self._inet = InternetConnection()
         self._device: Device = None
         self._check_msg_thread = RepeatTimer(self._process_delay, self._process_messages)
 
@@ -604,8 +605,8 @@ class MessengerApp(MDApp):
         Builder.load_file('chatcard.kv')
         Builder.load_file('messagecard.kv')
         self.root.load_chats(None)
-        self._device = Device(messenger_queue = self._messenger_queue, inet = self._inet,
-                              force_radio = True) #self.config.get('appsettings', 'force_lora'))
+        self._device = Device(messenger_queue = self._messenger_queue,
+                              force_radio = self.config.get('appsettings', 'force_lora'))
         self.root.dev_addr = self.dev_addr
         self.root.ids.nav_profile.text = hex(self.dev_addr)
         self._check_msg_thread.start()
@@ -622,17 +623,21 @@ class MessengerApp(MDApp):
         sys.exit(0)
 
     def build_config(self, config):
-        config.setdefaults('appsettings', {
-            'force_lora': True,
-            'poll_interval': settings.PROCESS_DELAY,
-            'tx_power': settings.TX_POWER,
-            'ui_chats_interval': settings.LOAD_CHATS_PERIOD,
-            'ui_messages_interval': settings.LOAD_MESSAGES_PERIOD,
-            'optionsexample': 'option2',
-            'stringexample': 'some_string',
-            'pathexample': '/some/path'})
+        # config.setdefaults('appsettings', {
+        #     'force_lora': True,
+        #     'poll_interval': settings.PROCESS_DELAY,
+        #     'tx_power': settings.TX_POWER,
+        #     'ui_chats_interval': settings.LOAD_CHATS_PERIOD,
+        #     'ui_messages_interval': settings.LOAD_MESSAGES_PERIOD,
+        #     'optionsexample': 'option2',
+        #     'stringexample': 'some_string',
+        #     'pathexample': '/some/path'})
+        config.read("messenger.ini")
 
+        # print(type(config))
     def build_settings(self, settings):
+        # self.config = ConfigParser()
+        # self.
         settings.add_json_panel('App Settings',
                                 self.config,
                                 data=settings_options)
@@ -665,7 +670,7 @@ class MessengerApp(MDApp):
 
     def _connection_monitor(self, dt):
         a = self.root.ids.toolbar_messenger.right_action_items
-        if self._inet.available: a[0][0] = os.path.join(settings.ASSETS_ICONS, "conn_inet.png")
+        if self._device._inet.available: a[0][0] = os.path.join(settings.ASSETS_ICONS, "conn_inet.png")
         else: a[0][0] = os.path.join(settings.ASSETS_ICONS, "conn_inet_no.png")
         if self._device.device_available: a[1][0] = os.path.join(settings.ASSETS_ICONS, "conn_lora.png")
         else: a[1][0] = os.path.join(settings.ASSETS_ICONS, "conn_lora_no.png")

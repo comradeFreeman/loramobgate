@@ -51,7 +51,7 @@ class UserDB(Base):
 class NetPacketIP(HashModel):
 	sender: int = Field(index = True)
 	recipient: int = Field(index = True)
-	timestamp: str
-	packet: bytes
+	timestamp: str = Field(index = True)
+	packet: str = Field(index = True)
 
 ###

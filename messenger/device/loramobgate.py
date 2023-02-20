@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 import threading
 
@@ -33,7 +34,8 @@ from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
 from hashlib import sha256, md5
 from anytree.exporter import JsonExporter
 from os import path, environ
-
+import declarations as s
+import requests
 
 #from kivy.utils import platform
 platform = "unknown"
@@ -64,39 +66,13 @@ def try_pickle(value):
 def compress_point(point: ec.Point):
 	return str(point.x + point.y % 2 + 461)
 
-import declarations as s
 
 lock = threading.Lock()
 context = ssl.SSLContext()
-context.load_verify_locations(cafile=path.join(settings.ASSETS_CERTS, "cert.pem"))
+#context.load_verify_locations(cafile=path.join(settings.ASSETS_CERTS, "cert.pem"))
 
+ltz = datetime.now().astimezone().tzinfo
 
-class InternetConnection:
-	def __init__(self):
-		self._avail = False
-		self._check_inet_thread = RepeatTimer(settings.PING_PERIOD, self._check_inet)
-		self._check_inet_thread.start()
-
-	@property
-	def available(self):
-		return self._avail
-
-	def _check_inet(self):
-		# print(ssl.get_default_verify_paths())
-		# print(context.get_ca_certs())
-		conn = http_client.HTTPSConnection(settings.PING_HOST, context = context, timeout=5)
-		try:
-			conn.request("HEAD", "/ping")
-			self._avail = True
-		except Exception:
-			# traceback.print_exc()
-			# traceback.print_stack()
-			self._avail = False
-		finally:
-			conn.close()
-
-	def send(self):
-		pass
 
 # класс, добавляющий в наследуемый класс функционал автоудаления объекта через указанное время
 class NodeExtended(Node):
@@ -241,6 +217,72 @@ class NetPacket:
 	def duplicate(self):
 		return NetPacket(source_packet = self.packet, direction = self.direction)
 
+
+class InternetConnection:
+	def __init__(self, username, password):
+		self._avail = False
+		self._username = username
+		self._password = password
+		self._token = None
+		self._check_inet_thread = RepeatTimer(settings.PING_PERIOD, self._check_inet)
+		self._token_thread = RepeatTimer(settings.TOKEN_INTERVAL, self._update_token)
+		self._check_inet_thread.start()
+		self._update_token()
+		self._token_thread.start()
+
+	@property
+	def available(self):
+		return self._avail
+
+	def _check_inet(self):
+		# print(ssl.get_default_verify_paths())
+		# print(context.get_ca_certs())
+		#conn = http_client.HTTPSConnection(settings.PING_HOST, context = context, timeout=5)
+		try:
+			r = requests.head(settings.PING_URL, verify = False)
+			#conn.request("HEAD", "/ping")
+			if r.status_code == 200:
+				self._avail = True
+				return
+			raise
+		except Exception:
+			traceback.print_exc()
+			traceback.print_stack()
+			self._avail = False
+		# finally:
+		# 	conn.close()
+
+	def _update_token(self):
+		if self._avail:
+			try:
+				r = requests.post(settings.API_URL + "/token", data = {"username": self._username,
+																	   "password": self._password},
+								  verify = False)
+				self._token = r.json().get("access_token")
+			except:
+				traceback.print_exc()
+				self._token = None
+
+	def send(self, packet: NetPacket):
+		if self._token:
+			try:
+				# conn = http_client.HTTPSConnection(settings.API_HOST, context = context, timeout=5)
+				requests.post(settings.API_URL + settings.PACKET_ENDPOINT, data = json.dumps({
+					"sender": packet.src_addr,
+					"recipient": packet.dst_addr,
+					"timestamp": datetime.now().replace(tzinfo = ltz).isoformat(),
+					"packet": packet.packet.hex()
+				}),
+					headers = {"Authorization": f"Bearer {self._token}"},
+					verify = False)
+
+			except:
+				traceback.print_exc()
+			else:
+				return True
+		return False
+		# finally:
+		# 	conn.close()
 
 class Routing:
 	dev_addr = 0
@@ -600,13 +642,14 @@ class Keys:
 
 
 class Device:
-	def __init__(self, messenger_queue: queue.Queue, inet: InternetConnection,
+	def __init__(self, messenger_queue: queue.Queue,# inet: InternetConnection,
 				 vid=settings.VID, pid=settings.PID, process_delay=10, check_delay=0.8, force_radio = True):
 		self._device = UsbConnection(vid, pid)
 		self._dev_info, self._dev_addr, _ = self.retrieve_info()
 		#
+		force_radio = True if force_radio == 1 else False
 		self.force_radio = force_radio
-		self._inet = inet
+		self._inet = InternetConnection(username = self._dev_addr, password = _.hex()) #inet
 		#
 		self._messenger_queue = messenger_queue
 		self._process_delay = process_delay
@@ -817,6 +860,8 @@ class Device:
 								self._packets_queue.put(packet)
 							sleep(.2)
 						else:
+							if not self._inet.send(packet):
+								self._packets_queue.put(packet)
 							print("Internet transmit")
 					# # запомнили на время, что мы что-то приняли или отправили
 
