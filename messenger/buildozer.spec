@@ -13,7 +13,7 @@ package.domain = org.aelita
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,json,db,ttf,pem
+source.include_exts = py,png,jpg,kv,atlas,json,db,ttf,pem,ini
 
 # (list) List of inclusions using pattern matching
 #source.include_patterns = assets/*,images/*.png
@@ -29,7 +29,7 @@ source.include_exts = py,png,jpg,kv,atlas,json,db,ttf,pem
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-version = 0.5.2
+version = 0.7.1
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -38,7 +38,7 @@ version = 0.5.2
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
 # hostpython3==3.10.0,
-requirements = sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow
+requirements = sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow,requests,urllib3,charset-normalizer,chardet,idna
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy

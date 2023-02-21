@@ -219,12 +219,13 @@ class NetPacket:
 
 
 class InternetConnection:
-	def __init__(self, username, password):
+	def __init__(self, username, password, ping_interval = settings.PING_INTERVAL):
 		self._avail = False
 		self._username = username
 		self._password = password
+		self._ping_interval = ping_interval
 		self._token = None
-		self._check_inet_thread = RepeatTimer(settings.PING_PERIOD, self._check_inet)
+		self._check_inet_thread = RepeatTimer(self._ping_interval, self._check_inet)
 		self._token_update_interval = 60
 		self._token_thread = None
 		self._check_inet_thread.start()
@@ -636,21 +637,22 @@ class Keys:
 
 
 class Device:
-	def __init__(self, messenger_queue: queue.Queue,# inet: InternetConnection,
-				 vid=settings.VID, pid=settings.PID, process_delay=10, check_delay=0.8, force_radio = True):
+	def __init__(self, messenger_queue: queue.Queue,  vid=settings.VID, pid=settings.PID,
+				 process_interval=settings.PROCESS_INTERVAL, check_interval=settings.CHECK_INTERVAL,
+				 api_poll_interval = settings.API_POLL_INTERVAL, force_radio = True):
 		self._device = UsbConnection(vid, pid)
 		self._dev_info, self._dev_addr, _ = self.retrieve_info()
 		#
-		force_radio = True if force_radio == 1 else False
-		self.force_radio = force_radio
+		self.force_radio = bool(force_radio)
 		self._inet = InternetConnection(username = self._dev_addr, password = _.hex()) #inet
 		#
 		self._messenger_queue = messenger_queue
-		self._process_delay = process_delay
-		self._check_delay = check_delay
-		self._check_msg_thread = RepeatTimer(self._check_delay, self._check_incoming_msg)
-		self._check_msg_thread_inet = RepeatTimer(settings.API_POLL_PERIOD, self._check_incoming_msg_inet)
-		self._route_thread = RepeatTimer(self._process_delay, self._route_net_packets)
+		self._process_interval = process_interval
+		self._check_interval = check_interval
+		self._api_poll_interval = api_poll_interval
+		self._check_msg_thread = RepeatTimer(self._check_interval, self._check_incoming_msg)
+		self._check_msg_thread_inet = RepeatTimer(self._api_poll_interval, self._check_incoming_msg_inet)
+		self._route_thread = RepeatTimer(self._process_interval, self._route_net_packets)
 		self._packets_queue = queue.Queue()
 		self._keys = Keys(private_key=_, packets_queue = self._packets_queue)
 		self._routing = Routing(packets_queue = self._packets_queue, keys = self._keys)

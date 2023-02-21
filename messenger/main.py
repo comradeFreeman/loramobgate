@@ -48,7 +48,7 @@ import declarations as s
 import queue
 from hashlib import md5
 from math import ceil
-from kivy.uix.settings import SettingsWithSidebar, SettingsWithNoMenu, SettingsWithSpinner
+from kivy.uix.settings import SettingsWithSidebar, SettingsWithNoMenu, SettingsWithSpinner, Settings
 from kivy.config import ConfigParser
 
 #from zoneinfo import ZoneInfo
@@ -212,8 +212,8 @@ class MessengerRoot(MDScreen):
             elevation=4,
             opening_time=0.2
         )
-        Clock.schedule_interval(lambda x: self.load_messages(load_new=True), settings.LOAD_MESSAGES_PERIOD)
-        Clock.schedule_interval(lambda x: self.load_chats(), settings.LOAD_CHATS_PERIOD)
+        Clock.schedule_interval(lambda x: self.load_messages(load_new=True), settings.UI_MESSAGES_INTERVAL)
+        Clock.schedule_interval(lambda x: self.load_chats(), settings.UI_CHATS_INTERVAL)
 
     def load_chats(self, caller = None, force = False):
         chats_db = Chat.select().order_by(Chat.last_message_id.desc())
@@ -592,10 +592,10 @@ class MessengerApp(MDApp):
         Window.bind(on_keyboard = self.keyboard_events)
         Window.softinput_mode = "pan"
         self._messenger_queue = queue.Queue()
-        self._process_delay = settings.PROCESS_DELAY
+        self._process_interval = None
         #self._inet = InternetConnection()
         self._device: Device = None
-        self._check_msg_thread = RepeatTimer(self._process_delay, self._process_messages)
+
 
     @property
     def dev_addr(self):
@@ -606,13 +606,18 @@ class MessengerApp(MDApp):
         Builder.load_file('messagecard.kv')
         self.root.load_chats(None)
         self._device = Device(messenger_queue = self._messenger_queue,
-                              force_radio = self.config.get('appsettings', 'force_lora'))
+                              process_interval = int(self.config.get('appsettings', 'PROCESS_INTERVAL')),
+                              api_poll_interval = int(self.config.get('appsettings', 'API_POLL_INTERVAL')),
+                              force_radio = int(self.config.get('appsettings', 'FORCE_LORA')))
         self.root.dev_addr = self.dev_addr
         self.root.ids.nav_profile.text = hex(self.dev_addr)
-        self._check_msg_thread.start()
-        Clock.schedule_interval(self._connection_monitor, self._process_delay)
+
+        Clock.schedule_interval(self._connection_monitor, int(self.config.get('appsettings', 'PROCESS_INTERVAL')))
         #
         self.settings_cls = SettingsWithSpinner
+        self._process_interval = int(self.config.get('appsettings', 'PROCESS_INTERVAL'))
+        self._check_msg_thread = RepeatTimer(self._process_interval, self._process_messages)
+        self._check_msg_thread.start()
         #self.use_kivy_settings = False
         #self.config.get("appsettings", "force_lora")
 
@@ -622,30 +627,32 @@ class MessengerApp(MDApp):
         db.close()
         sys.exit(0)
 
-    def build_config(self, config):
+    def build_config(self, config: ConfigParser):
         # config.setdefaults('appsettings', {
         #     'force_lora': True,
-        #     'poll_interval': settings.PROCESS_DELAY,
+        #     'poll_interval': settings.PROCESS_INTERVAL,
         #     'tx_power': settings.TX_POWER,
-        #     'ui_chats_interval': settings.LOAD_CHATS_PERIOD,
-        #     'ui_messages_interval': settings.LOAD_MESSAGES_PERIOD,
+        #     'ui_chats_interval': settings.UI_CHATS_INTERVAL,
+        #     'ui_messages_interval': settings.UI_MESSAGES_INTERVAL,
         #     'optionsexample': 'option2',
         #     'stringexample': 'some_string',
         #     'pathexample': '/some/path'})
         config.read("messenger.ini")
 
         # print(type(config))
-    def build_settings(self, settings):
-        # self.config = ConfigParser()
-        # self.
-        settings.add_json_panel('App Settings',
+    def build_settings(self, settings: Settings):
+        settings.add_json_panel('App Settings (Note: applied after App restart)',
                                 self.config,
                                 data=settings_options)
 
-    def on_config_change(self, config, section, key, value):
-        if key == "force_lora":
-            self._device.force_radio = True if value == "1" else False
-
+    def on_config_change(self, config: ConfigParser, section, key, value):
+        if key == "FORCE_LORA":
+            self._device.force_radio = bool(int(value))
+        elif "INTERVAL" in key:
+            if int(value) <= 0 or int(value) > 120:
+                value = getattr(settings, key)
+        config.set(section, key, str(value))
+        config.write()
 
     def do(self, caller: ActionTopAppBarButton):
         print(caller)

@@ -3,20 +3,19 @@ TX_POWER = 22
 
 CURVE = 'secp224r1'
 BROADCAST = 0xffffffff
-PING_PERIOD = 30
+PING_INTERVAL = 30
 PING_URL = 'https://lain-is.online/ping'
 DB_NAME = 'loramessenger.db'
 VID = 0x16c0
 PID = 0x05dc
-PROCESS_DELAY = 5
-LOAD_CHATS_PERIOD = 30
-LOAD_MESSAGES_PERIOD = 10
+CHECK_INTERVAL = 0.8
+PROCESS_INTERVAL = 5
+UI_CHATS_INTERVAL = 30
+UI_MESSAGES_INTERVAL = 10
 #API_URL = 'https://api.lain-is.online/v1/lmg'
-API_URL = "https://127.0.0.1:8000/v1/lmg"
-API_HOST = "127.0.0.1:8000"
-#API_URL = "/v1/lmg"
+API_URL = "https://192.168.1.176:8000/v1/lmg"
 PACKET_ENDPOINT = "/device/packets/"
-API_POLL_PERIOD = 10
+API_POLL_INTERVAL = 10
 TTL_NEIGHBOR = 30
 TTL_TRANSACTION = 36
 ASSETS_AVATARS = "./assets/avatars"
@@ -25,7 +24,7 @@ ASSETS_CERTS = "./assets/certs"
 ASSETS_FONTS = "./assets/fonts"
 FONT = "Roboto-Regular-Emoji.ttf"
 DEFAULT_AVATAR = "anonymus.jpg"
-APP_VERSION = "0.5.2"
+APP_VERSION = "0.7.1"
 
 
 settings_options = json.dumps([
@@ -33,37 +32,37 @@ settings_options = json.dumps([
 	 'title': 'Device settings'},
 	{'type': 'bool',
 	 'title': 'Force LoRa',
-	 'desc': 'Don\'t use Internet to send messages even it\'s available',
+	 'desc': 'Don\'t use Internet to send messages even it\'s available (applied immediately)',
 	 'section': 'appsettings',
-	 'key': 'force_lora'},
+	 'key': 'FORCE_LORA'},
 	{'type': 'numeric',
 	 'title': 'Process interval',
-	 'desc': 'How often device have to process new messages',
+	 'desc': 'How often device have to process packets in queues',
 	 'section': 'appsettings',
-	 'key': 'process_interval'},
+	 'key': 'PROCESS_INTERVAL'},
 	{'type': 'numeric',
 	 'title': 'TX Power',
 	 'desc': 'Output power of device. Note, that smaller power gives smaller distance your data can be received '
 			 'by another users. Change this parameter carefully!',
 	 'section': 'appsettings',
-	 'key': 'tx_power'},
+	 'key': 'TX_POWER'},
 	{'type': 'numeric',
 	 'title': 'Poll interval',
 	 'desc': 'How often to poll packets from server (if Internet available)',
 	 'section': 'appsettings',
-	 'key': 'inet_poll_interval'},
+	 'key': 'API_POLL_INTERVAL'},
 	{'type': 'title',
-	 'title': 'Messenger settings (Note: applied after app restart)'},
+	 'title': 'Messenger settings'},
 	{'type': 'numeric',
 	 'title': 'UI chats interval',
 	 'desc': 'How often to renew chats',
 	 'section': 'appsettings',
-	 'key': 'ui_chats_interval'},
+	 'key': 'UI_CHATS_INTERVAL'},
 	{'type': 'numeric',
 	 'title': 'UI messages interval',
 	 'desc': 'How often to renew messages in chat',
 	 'section': 'appsettings',
-	 'key': 'ui_messages_interval'},
+	 'key': 'UI_MESSAGES_INTERVAL'},
 
 
 	{'type': 'options',

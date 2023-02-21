@@ -156,8 +156,7 @@ async def new_packet(net_packet: NetPacketIP, current_user: UserDB = Depends(get
 		net_packet.save()
 		net_packet.expire(TTL_NETPACKET_BROADCAST if net_packet.recipient == BROADCAST else TTL_NETPACKET_OTHER)
 	else:
-		return False
-		# ret error дублирование
+		return Response(status_code=208) # Already Reported
 
 @serverapp.get("/device/packets/count")
 @cache(expire=10)
@@ -178,6 +177,7 @@ async def get_packets(current_user: UserDB = Depends(get_current_active_user), o
 @serverapp.post("/network/neighbors")
 async def add_neighbors(item: Union[list, int], current_user: UserDB = Depends(get_current_active_user)):
 	print(item)
+	return Response(status_code=200)
 
 @serverapp.get("/network/stats")
 async def net_stats():
