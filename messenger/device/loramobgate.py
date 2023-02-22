@@ -88,29 +88,7 @@ class NodeExtended(Node):
 		self.parent = None
 
 
-class Transaction(threading.Thread):
-	def __init__(self, *args, transaction_dict: dict, packet, ttl, queue: queue.Queue = None,**kwargs: dict):
-		self.ttl = ttl
-		self.transaction_dict = transaction_dict
-		self.packet = packet
-		self.packet_hash = packet.hashsum
-		self._queue = queue
-		super(Transaction, self).__init__(*args, **kwargs)
 
-	def run(self):
-		self.transaction_dict.update({self.packet_hash: self.packet})
-		for i in range(4):
-			sleep(self.ttl >> 2) # ttl/4
-			#print("PCC: ", self.packet_hash)
-			#print("TransCC: ", self.transaction_dict)
-			if self.packet_hash in self.transaction_dict and self._queue \
-					and self.packet.direction == NetPacketDirection.OUT \
-					and self.packet.app_id == AppID.MESSENGER:
-					print(f"NO CONFIRMATION RECEIVED FOR {self.packet.packet}")
-					self._queue.put(self.packet.duplicate())
-		else:
-			if self.packet_hash in self.transaction_dict:
-				del self.transaction_dict[self.packet_hash]
 
 
 class RepeatTimer(threading.Timer):
@@ -133,6 +111,7 @@ class NetPacket:
 		self.raw_data = kwargs.get('raw_data', bytes())
 		self.pydc = kwargs.get('pydc', len(self.raw_data) + 1)
 		self.direction = kwargs.get('direction', NetPacketDirection.IN)
+		self.try_radio = kwargs.get("try_radio", False)
 
 		if source_packet and isinstance(source_packet, Iterable):
 			self.src_addr, self.dst_addr, self.fragm_c, self.fragment, self.app_id, self.pydc, self.content_type = \
@@ -217,6 +196,32 @@ class NetPacket:
 	def duplicate(self):
 		return NetPacket(source_packet = self.packet, direction = self.direction)
 
+class Transaction(threading.Thread):
+	def __init__(self, *args, transaction_dict: dict, packet: NetPacket, ttl, queue: queue.Queue = None,**kwargs: dict):
+		self.ttl = ttl
+		self.transaction_dict = transaction_dict
+		self.packet = packet
+		self.packet_hash = packet.hashsum
+		self._queue = queue
+		super(Transaction, self).__init__(*args, **kwargs)
+
+	def run(self):
+		self.transaction_dict.update({self.packet_hash: self.packet})
+		for i in range(4):
+			sleep(self.ttl >> 2) # ttl/4
+			#print("PCC: ", self.packet_hash)
+			#print("TransCC: ", self.transaction_dict)
+			if self.packet_hash in self.transaction_dict and self._queue \
+					and self.packet.direction == NetPacketDirection.OUT \
+					and self.packet.app_id == AppID.MESSENGER:
+				print(f"NO CONFIRMATION RECEIVED FOR {self.packet.packet}")
+				dupl = self.packet.duplicate()
+				if i % 2: # 1,3
+					dupl.try_radio = True
+				self._queue.put(dupl)
+		else:
+			if self.packet_hash in self.transaction_dict:
+				del self.transaction_dict[self.packet_hash]
 
 class InternetConnection:
 	def __init__(self, username, password, ping_interval = settings.PING_INTERVAL):
@@ -354,38 +359,39 @@ class Routing:
 	################################### NETWORK
 	def process_network_event(self, packet):
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
-			#match packet.content_type:
-			if packet.content_type == ContentType.L3CNFRP:
-				print("CONFIRMATION ", packet.raw_data)
-				if packet.raw_data in self._last_transactions: # hash in last_transactions
-					#print("NET TP: ", self._last_transactions)
-					del self._last_transactions[packet.raw_data]
-					#print("NET TA: ", self._last_transactions)
-				return
-			elif packet.content_type == ContentType.L3NEIGHBORINFO:
-				#case ContentType.L3NEIGHBORINFO:
+			match packet.content_type:
+				case ContentType.L3CNFRP:
+			#if packet.content_type == ContentType.L3CNFRP:
+					print("CONFIRMATION ", packet.raw_data)
+					if packet.raw_data in self._last_transactions: # hash in last_transactions
+						#print("NET TP: ", self._last_transactions)
+						del self._last_transactions[packet.raw_data]
+						#print("NET TA: ", self._last_transactions)
+					return
+			#elif packet.content_type == ContentType.L3NEIGHBORINFO:
+				case ContentType.L3NEIGHBORINFO:
 					# сначала обработать (обновить своё дерево),
 					# а потом уже слать своё!
 					# ни в коем случае не пересылать этот пакет.
-				for record in (try_pickle(packet.raw_data) or []):
-					self.add_neighbor(packet.src_addr, record)
-				return # выходим, чтобы не пересылать дальше
-					# информация о соседях, пускай 10 записей таблицы
-			elif packet.content_type == ContentType.L3KEYEX:
-				#case ContentType.L3KEYEX:
+					for record in (try_pickle(packet.raw_data) or []):
+						self.add_neighbor(packet.src_addr, record)
+					return # выходим, чтобы не пересылать дальше
+						# информация о соседях, пускай 10 записей таблицы
+			#elif packet.content_type == ContentType.L3KEYEX:
+				case ContentType.L3KEYEX:
 					# опасно. обновляем хранилище ключей на пришедший распарсеный словарь
-				if data:= try_pickle(packet.raw_data):
-					for dev_addr, public_key in data.items():
-								# пускай цикл, чем костыли, чтобы получить из словаря 2 аргумента
-								# ну и на будущее задел, вдруг решу по несколько слать.
-						self._keys.add_key(dev_addr = dev_addr, public_key = public_key)
-					# обработка периодической рассылки ключей/ретрансляция ответов на запросы
-			elif packet.content_type == ContentType.L3KEYRQ:
-				#case ContentType.L3KEYRQ:
-				if value := self._keys.get_pk(int.from_bytes(packet.raw_data, byteorder='little')):
-					packet.swap_addr(from_me = True)
-					packet.content_type = ContentType.L3KEYEX
-					packet.raw_data = pickle.dumps({packet.raw_data: value})
+					if data:= try_pickle(packet.raw_data):
+						for dev_addr, public_key in data.items():
+									# пускай цикл, чем костыли, чтобы получить из словаря 2 аргумента
+									# ну и на будущее задел, вдруг решу по несколько слать.
+							self._keys.add_key(dev_addr = dev_addr, public_key = public_key)
+						# обработка периодической рассылки ключей/ретрансляция ответов на запросы
+			#elif packet.content_type == ContentType.L3KEYRQ:
+				case ContentType.L3KEYRQ:
+					if value := self._keys.get_pk(int.from_bytes(packet.raw_data, byteorder='little')):
+						packet.swap_addr(from_me = True)
+						packet.content_type = ContentType.L3KEYEX
+						packet.raw_data = pickle.dumps({packet.raw_data: value})
 						# сформировать пакет L3KEYEX, в который поместить сериализованный словарь "адрес-ключ"
 			# поменять направление на отправку
 			packet.swap_direction()
@@ -831,40 +837,40 @@ class Device:
 					self._routing.new_transaction_event(packet)
 					# не совсем корректно делать это ДО, а не ПОСЛЕ, но пакет меняется дальше и меняется его хэш
 					if packet.direction == NetPacketDirection.IN: # если это принятый пакет
-						if packet.app_id == AppID.NETWORK:
-						#match packet.app_id:
-							#case AppID.NETWORK: # события сети
-							self._routing.process_network_event(packet)
-						elif packet.app_id == AppID.MESSENGER:
-							#case AppID.MESSENGER: # события мессенджера
+						#if packet.app_id == AppID.NETWORK:
+						match packet.app_id:
+							case AppID.NETWORK: # события сети
+								self._routing.process_network_event(packet)
+						#elif packet.app_id == AppID.MESSENGER:
+							case AppID.MESSENGER: # события мессенджера
 								# или всё равно отправляем в месседж_квек, а там уже мессенджер будет периодически
 								# ходить по нерасшифрованным сообщениям и давать запросы на ключ
-							if packet.is_fragmented:
-								if packet.raw_data[:16].hex() not in self._partial_packets.keys():
-									self._partial_packets[packet.raw_data[:16].hex()] = [0] * packet.fragm_c
-								self._partial_packets[packet.raw_data[:16].hex()][packet.fragment] = packet.raw_data[16:]
-								if all(self._partial_packets[packet.raw_data[:16].hex()]):
-									full = packet.duplicate()
-									full.raw_data = b''.join(self._partial_packets[packet.raw_data[:16].hex()])
-									self._messenger_queue.put(full)
-									del self._partial_packets[packet.raw_data[:16].hex()]
-									print(full)
-								print(self._partial_packets)
-							else:
-								self._messenger_queue.put(packet)
-							if (packet.dst_addr == settings.BROADCAST):
-								copy = packet.duplicate()
-								copy.swap_direction()
-								self._packets_queue.put(copy)
-								# приём файлов по фрагментам, их сборка в кучу, пересылка
-						elif packet.app_id == AppID.LORA:
-							#case AppID.LORA: # события ЛоРа
-							pass
+								if packet.is_fragmented:
+									if packet.raw_data[:16].hex() not in self._partial_packets.keys():
+										self._partial_packets[packet.raw_data[:16].hex()] = [0] * packet.fragm_c
+									self._partial_packets[packet.raw_data[:16].hex()][packet.fragment] = packet.raw_data[16:]
+									if all(self._partial_packets[packet.raw_data[:16].hex()]):
+										full = packet.duplicate()
+										full.raw_data = b''.join(self._partial_packets[packet.raw_data[:16].hex()])
+										self._messenger_queue.put(full)
+										del self._partial_packets[packet.raw_data[:16].hex()]
+										print(full)
+									print(self._partial_packets)
+								else:
+									self._messenger_queue.put(packet)
+								if (packet.dst_addr == settings.BROADCAST):
+									copy = packet.duplicate()
+									copy.swap_direction()
+									self._packets_queue.put(copy)
+									# приём файлов по фрагментам, их сборка в кучу, пересылка
+						#elif packet.app_id == AppID.LORA:
+							case AppID.LORA: # события ЛоРа
+								pass
 								# переслать сообщение от ЛоРа девайсов в сеть, если она доступна
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
 						print(self.force_radio, self._inet.available)
-						if self.force_radio or not self._inet.available:
+						if self.force_radio or packet.try_radio or not self._inet.available:
 							print("About to transmit ", packet.packet)
 							if not self.transmit_data(packet):
 								self._packets_queue.put(packet)

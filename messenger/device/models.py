@@ -24,7 +24,7 @@ def generate_avatar(text):
 	font = ImageFont.truetype(path.join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf"), 144)
 	img = Image.new("RGBA", (200,200),tuple(random.choices(range(256), k=3)))
 	draw = ImageDraw.Draw(img)
-	draw.text((50, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
+	draw.text((55, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
 	draw = ImageDraw.Draw(img)
 	img.save(name)
 	return name

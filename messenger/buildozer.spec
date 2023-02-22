@@ -37,8 +37,8 @@ version = 0.7.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-# hostpython3==3.10.0,
-requirements = sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow,requests,urllib3,charset-normalizer,chardet,idna
+# hostpython3==3.11.2,
+requirements = hostpython3==3.10.6,python3==3.10.6,sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow,requests,urllib3,charset-normalizer,chardet,idna
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
@@ -315,7 +315,8 @@ android.allow_backup = True
 #p4a.fork = kivy
 
 # (str) python-for-android branch to use, defaults to master
-p4a.branch = master
+p4a.branch = develop
+#master
 
 # (str) python-for-android specific commit to use, defaults to HEAD, must be within p4a.branch
 #p4a.commit = HEAD

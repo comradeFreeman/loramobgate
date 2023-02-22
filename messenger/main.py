@@ -641,7 +641,7 @@ class MessengerApp(MDApp):
 
         # print(type(config))
     def build_settings(self, settings: Settings):
-        settings.add_json_panel('App Settings (Note: applied after App restart)',
+        settings.add_json_panel('App Settings',
                                 self.config,
                                 data=settings_options)
 
