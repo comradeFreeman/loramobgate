@@ -173,6 +173,10 @@ async def get_packets(current_user: UserDB = Depends(get_current_active_user), o
 		if np.recipient != BROADCAST:
 			NetPacketIP.delete(np.pk)
 	return {"count": len(new), "offset": offset, "packets": new}
+	#TODO добавить логику пограничного устройства.
+	# Например, пакет не предназначен конкретно этому ус-ву, но
+	# мы знаем (таблица соседей), что на расстоянии одного хопа есть устройство,
+	# которому пакет предназначен. Тогда помещаем пакет в список и оно передаст
 
 @serverapp.post("/network/neighbors")
 async def add_neighbors(item: Union[list, int], current_user: UserDB = Depends(get_current_active_user)):

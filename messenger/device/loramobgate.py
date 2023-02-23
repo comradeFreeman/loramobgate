@@ -88,9 +88,6 @@ class NodeExtended(Node):
 		self.parent = None
 
 
-
-
-
 class RepeatTimer(threading.Timer):
 	def run(self):
 		while not self.finished.wait(self.interval):
@@ -252,8 +249,7 @@ class InternetConnection:
 
 	def _update_token(self):
 		try:
-			r = requests.post(settings.API_URL + "/token", data = {"username": self._username, "password": self._password},
-								  verify = False)
+			r = requests.post(settings.API_URL + "/token", data = {"username": self._username, "password": self._password})
 		except: self._token_update_interval = 60
 		else:
 			self._avail = True
@@ -273,8 +269,7 @@ class InternetConnection:
 					"timestamp": datetime.now().replace(tzinfo = ltz).isoformat(),
 					"packet": packet.packet.hex()
 			}) if packet else None,
-				headers = {"Authorization": f"Bearer {self._token}"},
-				verify = False)
+				headers = {"Authorization": f"Bearer {self._token}"})
 			if r.status_code == 401: # unauthorized
 				self._update_token()
 			if r.status_code != 200:
@@ -285,6 +280,10 @@ class InternetConnection:
 			self._avail = True
 			return r.json()
 		return False
+
+	def stop(self):
+		self._check_inet_thread.cancel()
+		self._token_thread.cancel()
 
 
 class Routing:
@@ -580,8 +579,8 @@ class Keys:
 		self.renew_session_keys()
 		a = datetime.utcnow()
 		b = a.replace(day = a.day+1, hour=0, minute=0, second=0, microsecond=0)
-		rsk = RepeatTimer((b-a).total_seconds(), self.renew_session_keys)
-		rsk.start()
+		self.rsk = RepeatTimer((b-a).total_seconds(), self.renew_session_keys)
+		self.rsk.start()
 
 	@property
 	def private_key(self):
@@ -641,6 +640,9 @@ class Keys:
 				return True
 		return False
 
+	def stop(self):
+		self.rsk.cancel()
+
 
 class Device:
 	def __init__(self, messenger_queue: queue.Queue,  vid=settings.VID, pid=settings.PID,
@@ -694,6 +696,8 @@ class Device:
 		self._check_msg_thread.cancel()
 		self._check_msg_thread_inet.cancel()
 		self._route_thread.cancel()
+		self._inet.stop()
+		self._keys.stop()
 		self._device.close_device()
 
 	def get_key(self, key):

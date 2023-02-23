@@ -31,6 +31,7 @@ from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.snackbar import Snackbar
 from typing import Union
 from kivy.clock import Clock
+import signal
 
 from audiostream import get_input
 from time import sleep
@@ -596,6 +597,8 @@ class MessengerApp(MDApp):
         #self._inet = InternetConnection()
         self._device: Device = None
 
+        # FontContextManager.create('system://loramessenger')
+
 
     @property
     def dev_addr(self):
@@ -625,7 +628,8 @@ class MessengerApp(MDApp):
         self._check_msg_thread.cancel()
         self._device.stop()
         db.close()
-        sys.exit(0)
+        os._exit(0)
+        #os.kill(os.getpid(), signal.SIGKILL)
 
     def build_config(self, config: ConfigParser):
         # config.setdefaults('appsettings', {
