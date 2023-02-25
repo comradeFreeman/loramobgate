@@ -19,12 +19,15 @@ from PIL import ImageFont
 from PIL import Image
 from PIL import ImageDraw
 
-def generate_avatar(text):
-	name = path.join(ASSETS_AVATARS, f"{uuid.uuid4().hex}.png")
+def generate_avatar(text, prev_name = None):
+	if prev_name:
+		name = prev_name
+	else:
+		name = path.join(ASSETS_AVATARS, f"{uuid.uuid4().hex}.png")
 	font = ImageFont.truetype(path.join(ASSETS_FONTS, "Roboto-Regular-Emoji.ttf"), 144)
-	img = Image.new("RGBA", (200,200),tuple(random.choices(range(256), k=3)))
+	img = Image.new("RGBA", (200,200),tuple(random.choices(range(160, 256), k=3)))
 	draw = ImageDraw.Draw(img)
-	draw.text((55, 15),text,tuple(random.choices(range(0,128), k=3)),font=font)
+	draw.text((55, 15),text,tuple(random.choices(range(0,96), k=3)),font=font)
 	draw = ImageDraw.Draw(img)
 	img.save(name)
 	return name
@@ -163,9 +166,9 @@ class Chat(Model):
 @pre_save(sender = Chat)
 def update_avatar(model_class, chat_obj: Chat, created):
 	if not created: # and (DEFAULT_AVATAR in chat_obj.avatar or "custom" not in chat_obj.avatar):
-		chat_prev = Chat.get(Chat.id == chat_obj.id)
+		chat_prev: Chat = Chat.get(Chat.id == chat_obj.id)
 		if chat_obj.display_name != chat_prev.display_name and "custom" not in chat_obj.avatar:
-			chat_obj.avatar = generate_avatar(chat_obj.display_name[0])
+			chat_obj.avatar = generate_avatar(chat_obj.display_name[0], chat_prev.avatar)
 
 
 class Message(Model):
@@ -173,12 +176,6 @@ class Message(Model):
 	sender = IntegerField(column_name='sender', index=True, default=BROADCAST)
 	recipient = IntegerField(column_name='recipient', index=True, default=BROADCAST)
 	chat = ForeignKeyField(model=Chat, on_delete='CASCADE', backref='messages')
-	#CharField(column_name='chat', index=True)
-	#timestamp_sent = IntegerField(column_name='timestamp_sent', default=0, help_text=
-	#																			"""Числовое поле, в которое последние
-	#																			2 цифры означают десятки миллисекунд,
-	#																			а остальные означают секунды, прошедшие
-	#																			от начала суток (относительно UTC)""")
 	date_sent = TimestampTzField(column_name='date_sent', default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
 	date_received = TimestampTzField(column_name='date_received', default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
 	status = EnumField(enum=MessageStatus, column_name='status', default=MessageStatus.UNKNOWN)
@@ -187,15 +184,18 @@ class Message(Model):
 	forwarded_from = IntegerField(column_name='forwarded_from', null=True)
 	message_hash = CharField(column_name="message_hash",null=True, index=True)
 
-
 	class Meta:
 		table_name = 'messages'
 		database = db
 
 @pre_save(sender = Message)
-def update_last(model_class, message_obj: Chat, created):
+def update_last(model_class, message_obj: Message, created):
 	#if created:
+	if message_obj.sender != message_obj.chat.id:
+		message_obj.chat.unread = 0
+		message_obj.chat.save()
 	message_obj.chat.last_message_id = message_obj.id
+
 
 class Content(Model):
 	message = ForeignKeyField(model=Message, on_delete='CASCADE', backref='content')
@@ -214,17 +214,6 @@ def update_messagehash(model_class, content_obj: Content, created):
 			message_obj.date_sent.isoformat()[:19].encode('utf-8') +
 			pickle.dumps(content_obj.content)
 	).hexdigest()
-	# print("HASH DB: \n",
-	# 	  message_obj.date_sent, '\n',
-	# 	  #message_obj.date_sent.isoformat()[:19], '\n',
-	# 	  message_obj.date_sent.isoformat()[:19].encode('utf-8'), '\n',
-	# 	  content_obj.content, '\n', content_obj.content.decode('utf-8'), '\n', pickle.dumps(content_obj.content), '\n',
-	# 	  #message_obj.date_sent.isoformat()[:19].encode('utf-8') + pickle.dumps(content_obj.content), '\n',
-	# 	  md5(
-	# 		 message_obj.date_sent.isoformat()[:19].encode('utf-8') +
-	# 		 pickle.dumps(content_obj.content)
-	# 	  ).hexdigest())
-	#print("upd_message_hash: ", message_obj.id, message_obj.date_sent, message_obj.message_hash)
 	message_obj.save()
 
 db.connect()

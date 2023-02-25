@@ -4,8 +4,6 @@ import threading
 
 from time import sleep
 import usb.util as u
-#####
-#from parse_settings import SettingsParser
 from typing import Union
 import queue
 from collections.abc import Iterable
@@ -17,20 +15,14 @@ import pickle
 import anytree.cachedsearch
 from anytree import Node, LevelOrderIter, LevelGroupOrderIter
 import threading
-
 import ssl
-
 from datetime import datetime, timezone, timedelta
-###
 import tinyec.ec as ec
 import tinyec.registry as reg
 from pure_salsa20 import salsa20_xor, xsalsa20_xor
 from os import urandom
-#####
-import settings as settings
-import http.client as http_client
+import settings
 from classes import NetPacketDirection, AppID, Chip, TypeSizes, ContentType
-#from models import Message, Content
 from hashlib import sha256, md5
 from anytree.exporter import JsonExporter
 from os import path, environ
@@ -68,11 +60,7 @@ def compress_point(point: ec.Point):
 
 
 lock = threading.Lock()
-context = ssl.SSLContext()
-#context.load_verify_locations(cafile=path.join(settings.ASSETS_CERTS, "cert.pem"))
-
 ltz = datetime.now().astimezone().tzinfo
-
 
 # класс, добавляющий в наследуемый класс функционал автоудаления объекта через указанное время
 class NodeExtended(Node):
@@ -100,7 +88,7 @@ class NetPacket:
 		self.source_packet = source_packet
 		self._packet = bytearray()
 		self.src_addr = kwargs.get('src_addr', self.dev_addr)
-		self.dst_addr = kwargs.get('dst_addr', settings.BROADCAST) # broadcast
+		self.dst_addr = kwargs.get('dst_addr', settings.BROADCAST)
 		self.fragm_c = kwargs.get('fragm_c', 0)
 		self.fragment = kwargs.get('fragment', 0)
 		self.app_id = kwargs.get('app_id', AppID.UNKNOWN)
@@ -113,7 +101,6 @@ class NetPacket:
 		if source_packet and isinstance(source_packet, Iterable):
 			self.src_addr, self.dst_addr, self.fragm_c, self.fragment, self.app_id, self.pydc, self.content_type = \
 				unpack("<2I5B", bytes(source_packet[:13]))
-			#self.fragm_c, self.fragment, self.app_id = _ >> 4, _ & 0xf, AppID(self.app_id)
 			self.raw_data = bytes(source_packet[13:13 + self.pydc])
 			self.update()
 
@@ -126,7 +113,7 @@ class NetPacket:
 		return False
 
 	def __hash__(self) -> int:
-		return hash(str(self.packet)) #hash(frozenset(self.packet))
+		return hash(str(self.packet))
 
 	@property
 	def hashsum(self) -> bytes:
@@ -206,8 +193,6 @@ class Transaction(threading.Thread):
 		self.transaction_dict.update({self.packet_hash: self.packet})
 		for i in range(4):
 			sleep(self.ttl >> 2) # ttl/4
-			#print("PCC: ", self.packet_hash)
-			#print("TransCC: ", self.transaction_dict)
 			if self.packet_hash in self.transaction_dict and self._queue \
 					and self.packet.direction == NetPacketDirection.OUT \
 					and self.packet.app_id == AppID.MESSENGER:
@@ -360,14 +345,10 @@ class Routing:
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
 			match packet.content_type:
 				case ContentType.L3CNFRP:
-			#if packet.content_type == ContentType.L3CNFRP:
 					print("CONFIRMATION ", packet.raw_data)
-					if packet.raw_data in self._last_transactions: # hash in last_transactions
-						#print("NET TP: ", self._last_transactions)
+					if packet.raw_data in self._last_transactions: # =hash in last_transactions
 						del self._last_transactions[packet.raw_data]
-						#print("NET TA: ", self._last_transactions)
 					return
-			#elif packet.content_type == ContentType.L3NEIGHBORINFO:
 				case ContentType.L3NEIGHBORINFO:
 					# сначала обработать (обновить своё дерево),
 					# а потом уже слать своё!
@@ -375,17 +356,15 @@ class Routing:
 					for record in (try_pickle(packet.raw_data) or []):
 						self.add_neighbor(packet.src_addr, record)
 					return # выходим, чтобы не пересылать дальше
-						# информация о соседях, пускай 10 записей таблицы
-			#elif packet.content_type == ContentType.L3KEYEX:
+					# информация о соседях, пускай 10 записей таблицы
 				case ContentType.L3KEYEX:
 					# опасно. обновляем хранилище ключей на пришедший распарсеный словарь
 					if data:= try_pickle(packet.raw_data):
 						for dev_addr, public_key in data.items():
-									# пускай цикл, чем костыли, чтобы получить из словаря 2 аргумента
-									# ну и на будущее задел, вдруг решу по несколько слать.
+							# пускай цикл, чем костыли, чтобы получить из словаря 2 аргумента
+							# ну и на будущее задел, вдруг решу по несколько слать.
 							self._keys.add_key(dev_addr = dev_addr, public_key = public_key)
 						# обработка периодической рассылки ключей/ретрансляция ответов на запросы
-			#elif packet.content_type == ContentType.L3KEYRQ:
 				case ContentType.L3KEYRQ:
 					if value := self._keys.get_pk(int.from_bytes(packet.raw_data, byteorder='little')):
 						packet.swap_addr(from_me = True)
@@ -396,7 +375,7 @@ class Routing:
 			packet.swap_direction()
 			# переслать дальше
 			self._packets_queue.put(packet)
-				# запрос к соседям о публичных ключах для нужного devAddr. или переслать чей-то запрос дальше
+			# запрос к соседям о публичных ключах для нужного devAddr. или переслать чей-то запрос дальше
 
 	def _share_my_pubkey(self):
 		self._packets_queue.put(NetPacket(
@@ -455,7 +434,7 @@ class UsbConnection:
 	# u.ENDPOINT_IN      device to host requests: Mega       -> PC   (e.g. retrieve message from buffer)
 	# u.ENDPOINT_OUT     host to device requests: PC Payload -> Mega (e.g. module command + args)
 
-	def send_to_device(self, command, endp=u.ENDPOINT_IN, wValue=0, wIndex=0, data = None): #wLengthOrData: Union[int, Iterable] = 2048):
+	def send_to_device(self, command, endp=u.ENDPOINT_IN, wValue=0, wIndex=0, data = None):
 		retry = 0
 		while retry < 10:
 			try:
@@ -474,8 +453,6 @@ class UsbConnection:
 				else:
 					raise usb.core.USBError
 			except usb.core.USBError:
-				#traceback.print_stack()
-				#traceback.print_exc()
 				sleep(1)
 				self.open_device()
 			except:
@@ -540,7 +517,7 @@ class UsbPacket:  # тут будет формирование и хранени
 		return sum([p[1] for p in self.args])
 
 	@property
-	def packet(self):# -> list:
+	def packet(self):
 		self.update()
 		return self._packet
 
@@ -574,7 +551,6 @@ class Keys:
 		self._private_key = int.from_bytes(private_key, byteorder='big')
 		self._public_key = self.curve.g * self._private_key
 		self._packets_queue = packets_queue
-		#self._update_thread
 		self.last_renewed = None
 		self.renew_session_keys()
 		a = datetime.utcnow()
@@ -650,10 +626,8 @@ class Device:
 				 api_poll_interval = settings.API_POLL_INTERVAL, force_radio = True):
 		self._device = UsbConnection(vid, pid)
 		self._dev_info, self._dev_addr, _ = self.retrieve_info()
-		#
 		self.force_radio = bool(force_radio)
-		self._inet = InternetConnection(username = self._dev_addr, password = _.hex()) #inet
-		#
+		self._inet = InternetConnection(username = self._dev_addr, password = _.hex())
 		self._messenger_queue = messenger_queue
 		self._process_interval = process_interval
 		self._check_interval = check_interval
@@ -712,8 +686,8 @@ class Device:
 
 	def retrieve_info(self):
 		self._device.open_device()
-		dev_addr, lora_sync_word, country = 0x0, s.LORA_SYNC_WORD, 804 # random.getrandbits(32)
-		private_key = random.randbytes(28) #, random.randbytes(32)
+		dev_addr, lora_sync_word, country = 0x0, s.LORA_SYNC_WORD, 804
+		private_key = random.randbytes(28)
 		chip = Chip.SX126X
 		try:
 			dev_addr, lora_sync_word, country = unpack('<IHH', bytes(UsbPacket(source_packet =
@@ -774,12 +748,12 @@ class Device:
         object which the data will be read to, and the return value is the
         number of bytes read.
     """
-	def send_command(self, usb_packet: UsbPacket = None, command=s.MODULE_CTRL_MESSAGE): # , endp=u.ENDPOINT_OUT
+	def send_command(self, usb_packet: UsbPacket = None, command=s.MODULE_CTRL_MESSAGE):
 		if self._device.open_device():
 			# UsbPacket = Payload!
 			return self._device.send_to_device(command=command,
 											   endp=u.ENDPOINT_OUT if usb_packet else u.ENDPOINT_IN,
-											   data=usb_packet and usb_packet.packet) # usb_packet.packet if usb_packet else None
+											   data=usb_packet and usb_packet.packet)
 		return None
 
 	def transmit_data(self, packet: NetPacket):
@@ -795,7 +769,7 @@ class Device:
 		return bytes_sent
 
 	def get_data(self):
-		return self.send_command(command = s.USB_RADIO_RETRIEVE_MESSAGE) #, endp = u.ENDPOINT_IN)
+		return self.send_command(command = s.USB_RADIO_RETRIEVE_MESSAGE)
 
 	def add_packet(self, packet: NetPacket):
 		if isinstance(packet, NetPacket):
@@ -841,11 +815,9 @@ class Device:
 					self._routing.new_transaction_event(packet)
 					# не совсем корректно делать это ДО, а не ПОСЛЕ, но пакет меняется дальше и меняется его хэш
 					if packet.direction == NetPacketDirection.IN: # если это принятый пакет
-						#if packet.app_id == AppID.NETWORK:
 						match packet.app_id:
 							case AppID.NETWORK: # события сети
 								self._routing.process_network_event(packet)
-						#elif packet.app_id == AppID.MESSENGER:
 							case AppID.MESSENGER: # события мессенджера
 								# или всё равно отправляем в месседж_квек, а там уже мессенджер будет периодически
 								# ходить по нерасшифрованным сообщениям и давать запросы на ключ
@@ -867,14 +839,12 @@ class Device:
 									copy.swap_direction()
 									self._packets_queue.put(copy)
 									# приём файлов по фрагментам, их сборка в кучу, пересылка
-						#elif packet.app_id == AppID.LORA:
 							case AppID.LORA: # события ЛоРа
 								pass
 								# переслать сообщение от ЛоРа девайсов в сеть, если она доступна
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
-						print(self.force_radio, self._inet.available)
-						if self.force_radio or packet.try_radio or not self._inet.available:
+						if not self._inet.available or self.force_radio or packet.try_radio:
 							print("About to transmit ", packet.packet)
 							if not self.transmit_data(packet):
 								self._packets_queue.put(packet)
@@ -883,8 +853,6 @@ class Device:
 							if not self._inet.request(settings.PACKET_ENDPOINT, packet):
 								self._packets_queue.put(packet)
 							print("Internet transmit")
-					# # запомнили на время, что мы что-то приняли или отправили
-
 
 				print_with_date(("-->" if packet.direction == NetPacketDirection.IN else "<--") + " process: " + str(packet))
 
@@ -914,8 +882,8 @@ class Device:
 
 	flags:
 			bit #     7 6 5    4     3     2     1    0
-			value      		  2**4        2**2       2**0
-			meaning	  x x x reply_to x forwarded x internet
+			value      		  2**4        2**2      
+			meaning	  x x x reply_to x forwarded x    x
 		
 	Content:
 		*id

@@ -1,44 +1,23 @@
-from fastapi import FastAPI, Request
-from pydantic import BaseModel
-from typing import Optional
-# import messengerapi
-# import networkapi
-
 import redis
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.decorator import cache
-
-from pydantic import EmailStr
 from redis_om import HashModel, NotFoundError, Migrator
 from redis_om import get_redis_connection
-
-import sys
-
-sys.path.append("device")
 from fastapi import FastAPI, Request, Depends, Response, HTTPException, status
 from typing import Optional
 from pydantic import BaseModel
 from typing import Optional
-import json
-from uuid import uuid4
-import os
-from os import path
-from threading import Thread
 from datetime import datetime, timedelta
-from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from typing import Union
-import traceback
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from s_settings import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, TTL_NETPACKET_OTHER, \
 	VERSION, REDIS_CACHE_URL, REDIS_DATA_URL, API_PATH, BROADCAST, TTL_NETPACKET_BROADCAST
-from sqlalchemy.orm import Session
 from models import Base, User, Token, TokenData, UserDB, NetPacketIP
 from db import SessionLocal, engine
 from fastapi_cache.decorator import cache
-from fastapi.routing import APIRouter
 
 app = FastAPI()
 serverapp = FastAPI(title="LoRaMobGate Server API")
@@ -47,8 +26,7 @@ app.mount(f"/v{VERSION}{API_PATH}", serverapp)
 
 Base.metadata.create_all(bind=engine)
 
-# Dependency
-# def get_db():
+
 db = SessionLocal()
 try:
 	db #yield
@@ -173,7 +151,7 @@ async def get_packets(current_user: UserDB = Depends(get_current_active_user), o
 		if np.recipient != BROADCAST:
 			NetPacketIP.delete(np.pk)
 	return {"count": len(new), "offset": offset, "packets": new}
-	#TODO добавить логику пограничного устройства.
+	# TODO добавить логику пограничного устройства.
 	# Например, пакет не предназначен конкретно этому ус-ву, но
 	# мы знаем (таблица соседей), что на расстоянии одного хопа есть устройство,
 	# которому пакет предназначен. Тогда помещаем пакет в список и оно передаст

@@ -13,7 +13,6 @@ PROCESS_INTERVAL = 5
 UI_CHATS_INTERVAL = 30
 UI_MESSAGES_INTERVAL = 10
 API_URL = 'https://api.lain-is.online/v1/lmg'
-#API_URL = "https://192.168.1.176:8000/v1/lmg"
 PACKET_ENDPOINT = "/device/packets/"
 API_POLL_INTERVAL = 10
 TTL_NEIGHBOR = 30
@@ -23,7 +22,7 @@ ASSETS_ICONS = "./assets/icons"
 ASSETS_CERTS = "./assets/certs"
 ASSETS_FONTS = "./assets/fonts"
 FONT = "Roboto-Regular-Emoji.ttf"
-DEFAULT_AVATAR = "anonymus.jpg"
+DEFAULT_AVATAR = "anonymous.jpg"
 APP_VERSION = "0.7.6"
 
 

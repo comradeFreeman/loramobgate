@@ -12,10 +12,8 @@
     on_release: root.messagecard_callback(self, root.id)
     orientation: "vertical"
     AnchorLayout:
-    #BoxLayout:
         orientation: "vertical"
         padding: "12dp", "5dp", "10dp", "2dp"
-        #pos_hint: {"center_y": .3}
 
         MDLabel:
             id: message
@@ -32,9 +30,6 @@
 
             #TODO разобраться со шрифтами
 
-            #pos_hint: {"center_y": .4}
-            #size_hint_x: .8
-
         MDLabel:
             id: time
             text: root.full_date.strftime("%H:%M")
@@ -42,10 +37,6 @@
             font_size: "12sp"
             valign: 'bottom'
             halign: "right"
-            #size_hint_y: .2
-            #pos_hint: {"center_x": .5, "center_y": .5}
-            #pos_hint: {"center_y": .2}
-            #tooltip_text: root.full_date.strftime("%d.%m.%Y %H:%M:%S %Z%z")
 
 
 <MessageCardLeft@MessageCardBase>:
@@ -58,22 +49,3 @@
     md_bg_color: "#d8ed9d"
     radius: "20dp", "20dp", "5dp", "20dp"
 
-
-#<MessageCardBase>:
-#    size_hint: root.size_hint_x, None
-#    height:  message.texture_size[1] + 35
-#    padding: "15dp", "10dp", "15dp", "10dp"
-#    spacing: "6dp"
-
-#    FloatLayout:
-#        MDLabel:
-#            id: message
-#            text: root.message
-#            pos_hint: {"x": .01, "center_y": .57}
-
-#        MDLabel:
-#            id: time
-#            halign: "right"
-#            text: root.time
-#            font_size: "12sp"
-#            pos_hint: {"center_x": .50, "center_y": .05}

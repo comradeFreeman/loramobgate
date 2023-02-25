@@ -6,14 +6,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__) ,"device"))
 import settings
 from settings import settings_options
 from kivymd.app import MDApp
+from kivy.resources import resource_add_path, resource_find
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDTextButton, MDFlatButton, MDRaisedButton, MDRectangleFlatIconButton
+from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDRectangleFlatIconButton
 from kivymd.uix.label import MDLabel
 from kivy.properties import NumericProperty, StringProperty, ListProperty, ObjectProperty
 from kivymd.uix.card import MDCard
-from kivymd.uix.toolbar import MDTopAppBar
-from kivymd.uix.toolbar.toolbar import ActionTopAppBarButton
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.lang import Builder
 from datetime import datetime, timezone
@@ -23,37 +22,27 @@ from kivy.utils import platform
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.list import OneLineAvatarIconListItem, IRightBodyTouch
 from kivymd.uix.bottomsheet import MDListBottomSheet
-import json
 from itertools import groupby
 from kivy.core.clipboard import Clipboard
 from kivymd.uix.dialog import MDDialog
-from kivymd.uix.scrollview import MDScrollView
-from kivymd.uix.snackbar import Snackbar
 from typing import Union
 from kivy.clock import Clock
-import signal
 
 from audiostream import get_input
-from time import sleep
 from datetime import datetime, timedelta
 from typing import Iterable
 from kivy.core.text import FontContextManager
 
-from loramobgate import UsbConnection, Device, InternetConnection, NetPacket, RepeatTimer
+from loramobgate import Device, InternetConnection, NetPacket, RepeatTimer
 from models import Message, Content, Chat, db
 from classes import ContentType, AppID, NetPacketDirection
-
-import usb.util as u
-import declarations as s
 
 import queue
 from hashlib import md5
 from math import ceil
-from kivy.uix.settings import SettingsWithSidebar, SettingsWithNoMenu, SettingsWithSpinner, Settings
+from kivy.uix.settings import SettingsWithSpinner, Settings
 from kivy.config import ConfigParser
 
-#from zoneinfo import ZoneInfo
-#utc = ZoneInfo('UTC')
 
 localtz = datetime.now().astimezone().tzinfo
 
@@ -87,12 +76,11 @@ class MessagePacket:  # тут будет формирование и хране
         if source_packet and len(source_packet) >= 4 and isinstance(source_packet, bytes):
             self.timestamp = int.from_bytes(source_packet[:3], byteorder = "little")
             self.flags = source_packet[3]
-            self.reply_to = source_packet[4:4 + (self.flags & 16)]#.decode('utf-8')
+            self.reply_to = source_packet[4:4 + (self.flags & 16)]
             self.forwarded_from = int.from_bytes(source_packet[4:4 + (self.flags & 4)], byteorder="little")
             self.content = source_packet[(4 + (self.flags & 4) + (self.flags & 16)):].decode('utf-8')
             self.date = self.convert_my_timestamp(source_packet[:3])
             self.fragmentation = True if len(source_packet) > 100 else False
-            print("Repl_to: ", self.reply_to.hex())
 
         if not self.timestamp:
             self.timestamp = self.convert_my_timestamp(self.date)
@@ -100,7 +88,7 @@ class MessagePacket:  # тут будет формирование и хране
             self.date = self.convert_my_timestamp(self.timestamp)
 
     @property
-    def packet(self):# -> list:
+    def packet(self):
         self.update()
         return self._packet
 
@@ -133,7 +121,7 @@ class MessagePacket:  # тут будет формирование и хране
         self._packet.extend(int.to_bytes(self.flags, 1, byteorder="little"))
         if self.reply_to and self.flags & 16:
             self.forwarded_from = 0
-            self._packet.extend(self.reply_to) #.encode('utf-8'))
+            self._packet.extend(self.reply_to)
         if self.forwarded_from and self.flags & 4:
             self.reply_to = bytes()
             self._packet.extend(self.forwarded_from.to_bytes(4, byteorder="little"))
@@ -146,21 +134,16 @@ class MessagePacket:  # тут будет формирование и хране
     def convert_my_timestamp(cls, obj: Union[datetime, int]):
         if isinstance(obj, datetime):
             point = datetime.utcnow().replace(tzinfo=timezone.utc)
-            print("point ", point, point.microsecond / 10000)
-            print("obj", obj)
             value = int((obj - point.replace(hour=0,minute=0,second=0,microsecond=0)).\
                         total_seconds()) * 100 + int(obj.microsecond / 10000)
-            print("dt to timestamp: ", obj, value)
-            return value #value.to_bytes(length=3, byteorder="big")
-        elif isinstance(obj, int):#Union[bytes, bytearray]):
-            timestamp = str(obj) #int.from_bytes(obj, byteorder='big')
+            return value
+        elif isinstance(obj, int):
+            timestamp = str(obj)
             new_date = datetime.utcnow().replace(hour = 0, minute = 0, second = 0, microsecond = 0, tzinfo=timezone.utc)
             new_date += timedelta(seconds=int(timestamp[:5]), milliseconds=int(timestamp[5:]) * 10)
             now = datetime.utcnow().replace(tzinfo=timezone.utc)
-            print(new_date, now)
             if new_date > now:
                 new_date = new_date.replace(day = now.day - 1)
-            print("timestamp to dt: ", str(obj), new_date)
             return new_date
         return None
 
@@ -170,7 +153,6 @@ class MessengerRoot(MDScreen):
         self.dev_addr = None
         super(MessengerRoot, self).__init__(**kwargs)
         self.delete_dialog = None
-        #self.list_chats_changed = True
         self.action_msg_id = None
         message_actions = [
             { "viewclass": "Item", "text": "Reply", "left_icon": "message-reply", "height": dp(48),
@@ -179,8 +161,6 @@ class MessengerRoot(MDScreen):
               "on_release": lambda: self.message_actions_callback("copy"), },
             { "viewclass": "Item", "text": "Forward", "left_icon": "forward", "height": dp(48),
               "on_release": lambda: self.message_actions_callback("forward"), },
-            # { "viewclass": "Item", "text": "Edit", "left_icon": "note-edit", "height": dp(48),
-            #   "on_release": lambda: self.message_actions_callback("edit"), },
             { "viewclass": "Item", "text": "Delete", "left_icon": "delete", "height": dp(48),
               "on_release": lambda: self.message_actions_callback("delete"), }
 
@@ -213,8 +193,6 @@ class MessengerRoot(MDScreen):
             elevation=4,
             opening_time=0.2
         )
-        Clock.schedule_interval(lambda x: self.load_messages(load_new=True), settings.UI_MESSAGES_INTERVAL)
-        Clock.schedule_interval(lambda x: self.load_chats(), settings.UI_CHATS_INTERVAL)
 
     def load_chats(self, caller = None, force = False):
         chats_db = Chat.select().order_by(Chat.last_message_id.desc())
@@ -245,11 +223,10 @@ class MessengerRoot(MDScreen):
                         if last_message.content.get().ready:
                             chat_ui.message = last_message.content.get().content.decode('utf-8')
                         chat_ui.time = last_message.date_received.astimezone(localtz).strftime("%H:%M" if last_message.date_received.day == datetime.utcnow().day else "%d %b")
-                        #chat_ui.unread = chat_db.unread
                     if self.ids.chats_container.children.index(chat_ui) != list(chats_db)[::-1].index(chat_db): # разница в нумерации
                         changed.append(chat_ui)
                 else:
-                    pos = -1 - len([chat for chat in self.ids.chats_container.children if chat.last_message_id > chat_db.id])
+                    pos = -len([chat for chat in self.ids.chats_container.children if chat.last_message_id > chat_db.id])
                     last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
                         chat = chat_db.id,
@@ -264,7 +241,7 @@ class MessengerRoot(MDScreen):
                         last_message_id = chat_db.last_message_id or -1
                     ), pos)
                     # TODO test
-                    #self.load_chats(force=True)
+                    # Вроде как неправильно работает
 
             for item in changed[::-1]: # начинаем с добавления наверх "более старых" новых сообщений
                 self.ids.chats_container.remove_widget(item)
@@ -281,7 +258,6 @@ class MessengerRoot(MDScreen):
                                                 "display_name": hex(current_chat)})[0]
             if isinstance(caller, MDScreen):
                 self.ids.messages_container.clear_widgets()
-                #self.ids.messages_container.add_widget(LoadPreviousPane(on_release=self.load_messages))
                 self.ids.messages_container.add_widget(MDLabel()) # заглушка, относительно которой цепляются другие виджеты
                 self.ids.toolbar_chat.title = chat.display_name
                 chat.unread = 0
@@ -306,7 +282,6 @@ class MessengerRoot(MDScreen):
 
 
     def calc_width(self, len_text):
-        #print(self.width, len_text)
         factor = (sp(12) * len_text + (90 if platform == "android" else 30))/ self.width
         reply_symbols = int((self.width - 6*sp(12)) * factor / sp(12))
         if factor <= .9:
@@ -354,9 +329,6 @@ class MessengerRoot(MDScreen):
             for chat in Chat.select().order_by(Chat.last_message_id.desc()):
                 forward_menu.add_item(f"{chat.display_name} ({chat.id})", lambda x, y = chat: self.forward_callback(x, y))
             forward_menu.open()
-            print(self.action_msg_id)
-            # case "edit":
-            #     pass
         elif action == "delete":
             self.delete_dialog = MDDialog(
                 title="Delete message?",
@@ -387,12 +359,12 @@ class MessengerRoot(MDScreen):
 
     def chat_actions_callback(self, action, chat):
         self.chat_actions_menu.dismiss()
-        print(action, chat)
         if action == "title":
             if not [c for c in self.ids.chat_box.children if isinstance(c, ChangeChatTitlePane)]:
                 self.ids.chat_box.add_widget(ChangeChatTitlePane(chat = chat,
                                                                  toolbar_chat = self.ids.toolbar_chat,
                                                                  chats_container = self.ids.chats_container), -1)
+        # TODO
 
 
     def chat_actions_menu_callback(self, caller):
@@ -409,9 +381,6 @@ class MessengerRoot(MDScreen):
             app.send_message(nm.get_id())
         self.action_msg_id = None
 
-    def record_audio_message(self, data):
-        self.ids.messages_container.add_widget(ChatDateHeader(date = len(data))) # TODO
-
     def send(self, reply_to = 0, forwarded_from = 0):
         if content := self.ids.input_field.text:
             self.ids.input_field.text = ""
@@ -427,16 +396,11 @@ class MessengerRoot(MDScreen):
                 c.save()
                 if Message.get(chat.last_message_id).date_received.day != m.date_received.day:
                     self.ids.messages_container.add_widget(ChatDateHeader(date = m.date_received))
-                #chat.last_message_id = m.get_id()
                 chat.save()
                 self.draw_message(m, pos=0)
                 app.send_message(m.get_id())
         else:
             pass
-            # micro
-
-        # mic = get_input(callback=self.record_audio_message)
-        # mic.start()
 
 
     def scroll_bottom(self, caller):
@@ -457,8 +421,6 @@ class MessengerRoot(MDScreen):
         if not [c for c in caller.parent.children if isinstance(c, SearchChatPane)]:
             caller.parent.add_widget(SearchChatPane(chats_container = self.ids.chats_container,
                                                     full_list = self.ids.chats_container.children), -1)
-        # self.ids.list_chats_area.add_widget(ReplyMessagePane(text = "Hello World",
-        #                                                      msgid = 1))
 
 
     def check_id(self, caller, text):
@@ -469,11 +431,6 @@ class MessengerRoot(MDScreen):
         except: caller.error = True
         else: caller.error = False
 
-    # def open_chat(self, caller, chat = None):
-    #     print(caller, chat)
-    #     self.current_chat = chat if chat else caller.chat
-    #     self.ids.screen_manager.current = "chat_screen"
-
 class ChatCard(MDCard, ButtonBehavior):
     chat = NumericProperty(0xffffffff)
     display_name = StringProperty("Anonymous")
@@ -482,7 +439,6 @@ class ChatCard(MDCard, ButtonBehavior):
     time = StringProperty("01.01.1970")
     unread = NumericProperty(1)
     screen_manager = ObjectProperty()
-    #
     last_message_id = NumericProperty(-1)
 
 
@@ -490,19 +446,14 @@ class ChatCard(MDCard, ButtonBehavior):
         self.screen_manager.get_screen("chat_screen").current_chat = caller.chat
         self.screen_manager.get_screen("chat_screen").current_page = 1
         self.screen_manager.current = "chat_screen"
-        # chat = Chat.get_or_none(Chat.id == caller.chat)
-        # chat.unread = 0
-        # chat.save()
 
 
 class MessageCardBase(MDCard, ButtonBehavior):
     size_hint_x = NumericProperty()
     message_header = StringProperty()
     message_content = StringProperty()
-    #time = StringProperty()
     full_date = ObjectProperty()
     message_actions_menu = ObjectProperty()
-    #
     reply_to = NumericProperty()
     forwarded_from = NumericProperty()
     messages_scroll = ObjectProperty()
@@ -512,7 +463,6 @@ class MessageCardBase(MDCard, ButtonBehavior):
         self.message_actions_menu.caller = caller
         self.message_actions_menu.open()
         app.set_action_msg_id(msg_id)
-        #self.parent.root.action_msg_id = msg_id
 
     def scroll_replied(self, caller: MDLabel):
         try:
@@ -569,7 +519,6 @@ class ChangeChatTitlePane(MDBoxLayout):
 
 class ChatDateHeader(MDBoxLayout):
     date = ObjectProperty()
-    #text = StringProperty()
 
 class LoadPreviousPane(MDRectangleFlatIconButton):
     text = "Load previous messages"
@@ -594,11 +543,10 @@ class MessengerApp(MDApp):
         Window.softinput_mode = "pan"
         self._messenger_queue = queue.Queue()
         self._process_interval = None
-        #self._inet = InternetConnection()
         self._device: Device = None
 
-        # FontContextManager.create('system://loramessenger')
 
+        # FontContextManager.create('system://loramessenger')
 
     @property
     def dev_addr(self):
@@ -621,7 +569,10 @@ class MessengerApp(MDApp):
         self._process_interval = int(self.config.get('appsettings', 'PROCESS_INTERVAL'))
         self._check_msg_thread = RepeatTimer(self._process_interval, self._process_messages)
         self._check_msg_thread.start()
-        #self.use_kivy_settings = False
+        Clock.schedule_interval(lambda x: self.root.load_messages(load_new=True), int(self.config.get('appsettings', 'PROCESS_INTERVAL')))# settings.UI_MESSAGES_INTERVAL)
+        Clock.schedule_interval(lambda x: self.root.load_chats(), int(self.config.get('appsettings', 'PROCESS_INTERVAL'))) #, settings.UI_CHATS_INTERVAL)
+
+    #self.use_kivy_settings = False
         #self.config.get("appsettings", "force_lora")
 
     def on_stop(self):
@@ -658,22 +609,6 @@ class MessengerApp(MDApp):
         config.set(section, key, str(value))
         config.write()
 
-    def do(self, caller: ActionTopAppBarButton):
-        print(caller)
-        a: MDTopAppBar = self.root.ids.toolbar_messenger
-        print(a.right_action_items)
-        print(type(a.right_action_items))
-
-    def do2(self, caller):
-        connection = UsbConnection()
-        if connection:
-            self.root.ids.settings_label1.text = f"{self._device.send_command(command=s.USB_GET_DEVINFO)}"
-        self.root.ids.settings_label2.text = f"{sys.path}"
-        self.root.ids.settings_label3.text = f"{self._device.dev_addr}"
-        self.root.ids.settings_label5.text = f"{self._device.dev_info}"
-
-    def do3(self, caller):
-        print(caller.vbar)
 
     def set_action_msg_id(self, msg_id):
         if isinstance(msg_id, int) and 0 <= msg_id < 0xffffffff:
@@ -687,12 +622,6 @@ class MessengerApp(MDApp):
         else: a[1][0] = os.path.join(settings.ASSETS_ICONS, "conn_lora_no.png")
         self.root.ids.toolbar_messenger.update_action_bar(self.root.ids.toolbar_messenger.children[1].children[0], a)
 
-
-    # def open_chat(self, caller, chat = None):
-    #     print(caller, chat)
-    #     self.root.current_chat = chat if chat else caller.chat
-    #     self.root.ids.screen_manager.current = "chat_screen"
-
     def keyboard_events(self, window, key, *largs):
         #if self.manager_open and key in (1001, 27):
         #    self.file_manager.back()
@@ -705,7 +634,6 @@ class MessengerApp(MDApp):
         message_rp = None
         if message_db.reply_to:
             message_rp = Message.get_or_none(Message.id == message_db.reply_to)
-        print("send_message date.sent: ", message_db.date_sent)
         message = MessagePacket(reply_to = message_rp.message_hash if message_rp else "",
                                 forwarded_from = message_db.forwarded_from,
                                 content = message_db.content.get().content.decode('utf-8'),
@@ -713,7 +641,6 @@ class MessengerApp(MDApp):
 
         parts = ceil(len(message.packet) / 100) if len(message.packet) > 100 else 0
         for i, j in enumerate(range(0, len(message.packet), 100)):
-            print(message_db.recipient)
             a = NetPacket(dst_addr = message_db.recipient, fragm_c = parts, fragment = i,
                           app_id = AppID.MESSENGER, content_type = ContentType.TEXT,
                           direction = NetPacketDirection.OUT,
@@ -782,6 +709,8 @@ class MessengerApp(MDApp):
 
 
 if __name__ == "__main__":
+    if hasattr(sys, '_MEIPASS'):
+        resource_add_path(os.path.join(sys._MEIPASS))
     app = MessengerApp()
     app.run()
 

@@ -29,7 +29,7 @@ source.include_exts = py,png,jpg,kv,atlas,json,db,ttf,pem,ini
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-version = 0.7.1
+version = 0.7.6
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -406,7 +406,7 @@ warn_on_root = 1
 # build_dir = ./.buildozer
 
 # (str) Path to build output (i.e. .apk, .aab, .ipa) storage
-# bin_dir = ./bin
+bin_dir = ./smartphone_bin
 
 #    -----------------------------------------------------------------------------
 #    List as sections

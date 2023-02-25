@@ -137,7 +137,6 @@ MessengerRoot:
                         orientation: 'vertical'
                         id: "list_chats_area"
                         ScrollView:
-                            #on_touch_move: sum(self.vbar) == 1.0 and root.load_chats(self)
                             MDBoxLayout:
                                 id: chats_container
                                 orientation: 'vertical'
@@ -152,7 +151,7 @@ MessengerRoot:
                     id: toolbar_settings
                     title: "Settings"
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
-                    right_action_items: [[join(ASSETS_ICONS, "usual_connections.png"), app.do2]]
+                    right_action_items: [[join(ASSETS_ICONS, "usual_connections.png")]]
                 MDBoxLayout:
                     orientation: "vertical"
                     MDLabel:
@@ -223,7 +222,7 @@ MessengerRoot:
                     MyMDTopAppBar:
                         id: toolbar_chat
                         left_action_items: [["arrow-left", lambda x: setattr(screen_manager, "current", "messenger_screen")]]
-                        right_action_items: [["arrow-down", root.scroll_bottom], ["dots-vertical", root.chat_actions_menu_callback]] #lambda x: setattr(messages_scroll, "scroll_y", "0")
+                        right_action_items: [["arrow-down", root.scroll_bottom], ["dots-vertical", root.chat_actions_menu_callback]]
                         title: str(root.current_chat)
 
                     MDBoxLayout:
@@ -257,19 +256,12 @@ MessengerRoot:
                             pos_hint: {"center_y": .45}
                             text_color_normal: "black"
                             text_color_focus: "black"
-                            on_text: setattr(send_message, "icon", "send") if self.text else setattr(send_message, "icon", "microphone-plus") #root.on_text(self.text)
-#                        MDIconButton:
-#                            id: attachment
-#                            icon: "attachment"
-#                            pos_hint: { "center_y": .5 }
-#                            on_release: app.add_attachment()
+                            on_text: setattr(send_message, "icon", "send") if self.text else setattr(send_message, "icon", "microphone-plus")
                         MDIconButton:
                             id: send_message
                             icon: "microphone-plus"
                             pos_hint: {"center_y": .5}
                             on_release: root.send()
-
-
 
     MDNavigationDrawer:
         id: nav_drawer
@@ -285,9 +277,13 @@ MessengerRoot:
                 title_font_size: "45sp"
                 text_font_size: "20sp"
 
+            MDNavigationDrawerDivider:
             MDNavigationDrawerLabel:
                 text: "Options"
-            MDNavigationDrawerDivider:
+            MDNavigationDrawerItem:
+                icon: join(ASSETS_ICONS, "profile-icon.png")
+                text: "Edit profile"
+                on_release: app.open_settings()
             MDNavigationDrawerItem:
                 icon: "message-plus"
                 text: "New chat"
@@ -295,6 +291,5 @@ MessengerRoot:
             MDNavigationDrawerItem:
                 icon: join(ASSETS_ICONS, "settings-icon.png")
                 text: "Settings"
-                #on_press: nav_drawer.set_state("close") or setattr(screen_manager, "current", "settings_screen")
                 on_release: app.open_settings()
             MDNavigationDrawerDivider:
