@@ -43,6 +43,10 @@ from math import ceil
 from kivy.uix.settings import SettingsWithSpinner, Settings
 from kivy.config import ConfigParser
 
+import logging
+logger = logging.getLogger('peewee')
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.DEBUG)
 
 localtz = datetime.now().astimezone().tzinfo
 
@@ -226,7 +230,8 @@ class MessengerRoot(MDScreen):
                     if self.ids.chats_container.children.index(chat_ui) != list(chats_db)[::-1].index(chat_db): # разница в нумерации
                         changed.append(chat_ui)
                 else:
-                    pos = -len([chat for chat in self.ids.chats_container.children if chat.last_message_id > chat_db.id])
+                    pos = -1 - len([chat for chat in self.ids.chats_container.children
+                                    if chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
                     last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
                         chat = chat_db.id,
@@ -359,13 +364,32 @@ class MessengerRoot(MDScreen):
 
     def chat_actions_callback(self, action, chat):
         self.chat_actions_menu.dismiss()
-        if action == "title":
-            if not [c for c in self.ids.chat_box.children if isinstance(c, ChangeChatTitlePane)]:
-                self.ids.chat_box.add_widget(ChangeChatTitlePane(chat = chat,
-                                                                 toolbar_chat = self.ids.toolbar_chat,
-                                                                 chats_container = self.ids.chats_container), -1)
+        match action:
+            case "title":
+                if not [c for c in self.ids.chat_box.children if isinstance(c, ChangeChatTitlePane)]:
+                    self.ids.chat_box.add_widget(ChangeChatTitlePane(chat = chat,
+                                                                     toolbar_chat = self.ids.toolbar_chat,
+                                                                     chats_container = self.ids.chats_container), -1)
+            case "delete":
+                self.delete_dialog = MDDialog(
+                    title="Delete chat?",
+                    text="This chat will be deleted forever and it would be impossible to recover it since messages are stored only on clients devices!",
+                    type="alert",
+                    buttons=[
+                        MDRaisedButton(text="CANCEL", on_release=lambda x: self.delete_chat_callback(x, chat)),
+                        MDFlatButton(text="DELETE", on_release=lambda x: self.delete_chat_callback(x, chat)),
+                    ],
+                )
+                self.delete_dialog.open()
         # TODO
-
+    def delete_chat_callback(self, caller, chat):
+        if caller.text == "DELETE" and (chat_db:= Chat.get_or_none(Chat.id == chat)):
+            self.ids.screen_manager.get_screen("chat_screen").current_chat = 0
+            chat_db.delete_instance()
+            if chats_ui:= [c for c in self.ids.chats_container.children if c.chat == chat]:
+                self.ids.chats_container.remove_widget(chats_ui[0])
+            self.ids.screen_manager.current = "messenger_screen"
+        self.delete_dialog.dismiss()
 
     def chat_actions_menu_callback(self, caller):
         self.chat_actions_menu.caller = caller

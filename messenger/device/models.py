@@ -1,8 +1,8 @@
-import pickle
 import uuid
-
 from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
+
+import settings
 from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
 from os import path
 from datetime import datetime, timedelta, timezone
@@ -12,7 +12,6 @@ from classes import ContentType, MessageStatus
 from peewee import Field
 from typing import Union
 from hashlib import md5
-from kivy.utils import platform
 import pickle
 import random
 from PIL import ImageFont
@@ -20,7 +19,7 @@ from PIL import Image
 from PIL import ImageDraw
 
 def generate_avatar(text, prev_name = None):
-	if prev_name:
+	if prev_name and settings.DEFAULT_AVATAR not in prev_name:
 		name = prev_name
 	else:
 		name = path.join(ASSETS_AVATARS, f"{uuid.uuid4().hex}.png")
@@ -32,16 +31,9 @@ def generate_avatar(text, prev_name = None):
 	img.save(name)
 	return name
 
-#from zoneinfo import ZoneInfo
-#utc = #ZoneInfo('UTC')
-
-#if platform == "android":
 localtz = datetime.now().astimezone().tzinfo
-#else:
-#	import usb.core
-#	localtz = ZoneInfo('localtime')
 
-db = SqliteDatabase(DB_NAME, pragmas={ 'journal_mode': 'wal', 'cache_size': -1024 * 64 })
+db = SqliteDatabase(DB_NAME, pragmas={ 'journal_mode': 'wal', 'cache_size': -1024 * 64, 'foreign_keys': 1})
 
 
 class EnumField(SmallIntegerField):
