@@ -216,6 +216,8 @@ class MessengerRoot(MDScreen):
                         screen_manager = self.ids.screen_manager,
                         last_message_id = chat.last_message_id or -1
                     ))
+            if not chats_db:
+                self.ids.chats_container.add_widget(MDLabel(text = "There is nothing here yet...", halign = "center", valign = "center"))
         else:
             changed = []
             for chat_db in chats_db:
@@ -231,7 +233,7 @@ class MessengerRoot(MDScreen):
                         changed.append(chat_ui)
                 else:
                     pos = -1 - len([chat for chat in self.ids.chats_container.children
-                                    if chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
+                                    if chat_db.last_message_id and chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
                     last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
                         chat = chat_db.id,
@@ -255,15 +257,16 @@ class MessengerRoot(MDScreen):
 
     def load_messages(self, caller = None, page=1, count=10, load_new = False):
         current_chat = self.ids.screen_manager.get_screen("chat_screen").current_chat
+        chat_title = self.ids.screen_manager.get_screen("chat_screen").chat_title
         if current_chat:
             chat = Chat.get_or_create(id = current_chat,
                                       defaults={"participants": {self.dev_addr: self.dev_addr,
                                                                  current_chat: current_chat},
                                                 "id": current_chat,
-                                                "display_name": hex(current_chat)})[0]
+                                                "display_name": chat_title or hex(current_chat)})[0]
             if isinstance(caller, MDScreen):
                 self.ids.messages_container.clear_widgets()
-                self.ids.messages_container.add_widget(MDLabel()) # заглушка, относительно которой цепляются другие виджеты
+                self.ids.messages_container.add_widget(MDLabel(halign = "center", valign = "center")) # заглушка, относительно которой цепляются другие виджеты
                 self.ids.toolbar_chat.title = chat.display_name
                 chat.unread = 0
                 chat.save()
@@ -284,6 +287,9 @@ class MessengerRoot(MDScreen):
                     for message in grouped_by_day:
                         self.draw_message(message)
                     self.ids.messages_container.add_widget(ChatDateHeader(date = date), -1)
+            if (p:= [el for el in self.ids.messages_container.children if isinstance(el, MDLabel)]) and not \
+                    [el for el in self.ids.messages_container.children if isinstance(el, MessageCardBase)]:
+                p[0].text = "There is nothing here yet..."
 
 
     def calc_width(self, len_text):
@@ -304,7 +310,7 @@ class MessengerRoot(MDScreen):
             card = MessageCardRight if message.sender == self.dev_addr else MessageCardLeft
             preferred_factor, reply_symbols = self.calc_width(len(message_content))
             if r:= message.reply_to:
-                message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" \
+                message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" +\
                                  f"[i]> {Message.get(Message.id == r).content.get().content.decode('utf-8')[:reply_symbols]}...[/i][/ref]\n\n"
             elif f:= message.forwarded_from:
                 message_header = f"> Forwarded from [b] {f}[/b]\n\n"
@@ -385,6 +391,7 @@ class MessengerRoot(MDScreen):
     def delete_chat_callback(self, caller, chat):
         if caller.text == "DELETE" and (chat_db:= Chat.get_or_none(Chat.id == chat)):
             self.ids.screen_manager.get_screen("chat_screen").current_chat = 0
+            self.ids.screen_manager.get_screen("chat_screen").chat_title = ""
             chat_db.delete_instance()
             if chats_ui:= [c for c in self.ids.chats_container.children if c.chat == chat]:
                 self.ids.chats_container.remove_widget(chats_ui[0])
@@ -433,11 +440,14 @@ class MessengerRoot(MDScreen):
 
     def new_chat(self, caller):
         chat = 0
-        try: chat = int(self.ids.new_chat_id.text, 0)
+        try:
+            chat = int(self.ids.new_chat_id.text, 0)
+            title = self.ids.new_chat_title.text
         except: pass
         else:
             self.ids.new_chat_id.text = ""
             self.ids.screen_manager.get_screen("chat_screen").current_chat = chat
+            self.ids.screen_manager.get_screen("chat_screen").chat_title = title
             self.ids.screen_manager.get_screen("chat_screen").current_page = 1
             self.ids.screen_manager.current = "chat_screen"
 
@@ -618,7 +628,6 @@ class MessengerApp(MDApp):
         #     'pathexample': '/some/path'})
         config.read("messenger.ini")
 
-        # print(type(config))
     def build_settings(self, settings: Settings):
         settings.add_json_panel('App Settings',
                                 self.config,

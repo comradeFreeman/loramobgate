@@ -29,6 +29,9 @@ from os import path, environ
 import declarations as s
 import requests
 
+from sqlitedict import SqliteDict
+pubkeys = SqliteDict(settings.DB_DATA, tablename="pubkeys") #, autocommit=True)
+
 #from kivy.utils import platform
 platform = "unknown"
 
@@ -224,7 +227,7 @@ class InternetConnection:
 
 	def _check_inet(self):
 		try:
-			r = requests.head(settings.PING_URL, verify = False)
+			r = requests.head(settings.PING_URL)
 			if r.status_code == 200:
 				self._avail = True
 				return
@@ -271,7 +274,7 @@ class InternetConnection:
 		self._token_thread.cancel()
 
 
-class Routing:
+class Network:
 	dev_addr = 0
 	def __init__(self, packets_queue, keys, ttl_neighbor=settings.TTL_NEIGHBOR, ttl_transactions=settings.TTL_TRANSACTION):
 		self._keys: Keys = keys
@@ -547,7 +550,8 @@ class UsbPacket:  # тут будет формирование и хранени
 class Keys:
 	def __init__(self, private_key, packets_queue: queue.Queue):
 		self.curve = reg.get_curve(settings.CURVE)
-		self._keys = {}
+		self._keys = dict(pubkeys.items())
+		print("KEYS", self._keys)
 		self._private_key = int.from_bytes(private_key, byteorder='big')
 		self._public_key = self.curve.g * self._private_key
 		self._packets_queue = packets_queue
@@ -585,7 +589,7 @@ class Keys:
 		if not isinstance(public_key, ec.Point) and isinstance(public_key, list):
 			public_key = ec.Point(self.curve, *public_key)
 		self._keys[dev_addr] = { 'public_key': public_key,
-								 'session_key': self.generate_session_key(public_key) }
+			  					 'session_key': self.generate_session_key(public_key) }
 
 	def get_pk(self, dev_addr):
 		if dev_addr in self._keys.keys():
@@ -618,6 +622,14 @@ class Keys:
 
 	def stop(self):
 		self.rsk.cancel()
+		# if "keys" not in self._keys:
+		# 	pubkeys['keys'] = {}
+		# print("keys: ", self._keys.items())
+		for dev_addr, data in self._keys.items():
+			pubkeys[dev_addr] = data
+		else:
+			pubkeys.commit()
+			#TODO
 
 
 class Device:
@@ -637,7 +649,7 @@ class Device:
 		self._route_thread = RepeatTimer(self._process_interval, self._route_net_packets)
 		self._packets_queue = queue.Queue()
 		self._keys = Keys(private_key=_, packets_queue = self._packets_queue)
-		self._routing = Routing(packets_queue = self._packets_queue, keys = self._keys)
+		self._net = Network(packets_queue = self._packets_queue, keys = self._keys)
 		self._partial_packets = {}
 		self._initialize()
 
@@ -651,7 +663,7 @@ class Device:
 
 	@property
 	def neighbors(self):
-		return self._routing.neighbors()
+		return self._net.neighbors()
 
 	@property
 	def queue_size(self):
@@ -666,7 +678,7 @@ class Device:
 
 	def stop(self):
 		# TODO сохранить содержимое очередей. подумать о порядке
-		self._routing.stop()
+		self._net.stop()
 		self._check_msg_thread.cancel()
 		self._check_msg_thread_inet.cancel()
 		self._route_thread.cancel()
@@ -706,7 +718,7 @@ class Device:
 					'chip': chip
 				}
 			NetPacket.dev_addr = dev_addr
-			Routing.dev_addr = dev_addr
+			Network.dev_addr = dev_addr
 			return dev_info, dev_addr, private_key
 
 	# чтобы объект мог менять отправителя
@@ -810,14 +822,14 @@ class Device:
 		try:
 			while not self._packets_queue.empty(): # and self.device_available:
 				packet: NetPacket = self._packets_queue.get() # если это не отправленный нами вернувшийся пакет
-				if not self._routing.is_recent(packet):
+				if not self._net.is_recent(packet):
 					# запомнили на время, что мы что-то приняли или отправили
-					self._routing.new_transaction_event(packet)
+					self._net.new_transaction_event(packet)
 					# не совсем корректно делать это ДО, а не ПОСЛЕ, но пакет меняется дальше и меняется его хэш
 					if packet.direction == NetPacketDirection.IN: # если это принятый пакет
 						match packet.app_id:
 							case AppID.NETWORK: # события сети
-								self._routing.process_network_event(packet)
+								self._net.process_network_event(packet)
 							case AppID.MESSENGER: # события мессенджера
 								# или всё равно отправляем в месседж_квек, а там уже мессенджер будет периодически
 								# ходить по нерасшифрованным сообщениям и давать запросы на ключ

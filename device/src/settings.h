@@ -45,8 +45,9 @@
          Fragm - для указания текущего номера                             +---------------------------------------+
          фрагмента, напр., для аудиопотока.                               |    1 byte   |     PYDC - 1 bytes      |
          FragC - для указания кол-ва фрагментов            L6 + L7 OSI    +-------------+-------------------------+
-                                                                          | ContentType | Encode(Compress(Data))  |
+                                                                          | ContentType | Encode*(Compress(Data)) |
                                                                           +---------------------------------------+
+          
 */
 
 
@@ -92,8 +93,12 @@
 #define USB_GET_PRIVATE_KEY    211
 //#define USB_GET_PUBLIC_KEY    212
 
+#define USB_LED_ENABLE 224
+#define USB_LED_DISABLE 225
+
 #define USB_ENABLE_MODULE 228
 #define USB_DISABLE_MODULE 229
+
 //#define USB_RADIO_WRITE_BUFFER 7 // PC -> Mega buffer
 //#define USB_RADIO_RRQST 10 // PC -> Mega.receive()
 //#define USB_RADIO_TRQST 20 // PC -> Mega.transmit()
