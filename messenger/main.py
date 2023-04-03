@@ -43,10 +43,16 @@ from math import ceil
 from kivy.uix.settings import SettingsWithSpinner, Settings
 from kivy.config import ConfigParser
 
+
 import logging
-logger = logging.getLogger('peewee')
-logger.addHandler(logging.StreamHandler())
+import logging.config
+# logger = logging.getLogger('peewee')
+# logger.addHandler(logging.StreamHandler())
+# logger.setLevel(logging.DEBUG)
+logging.config.dictConfig(settings.LOGGING_CONF)
+logger = logging.getLogger("loramobgate.messenger")
 logger.setLevel(logging.DEBUG)
+logger.info("Log of messenger started")
 
 localtz = datetime.now().astimezone().tzinfo
 
@@ -199,6 +205,7 @@ class MessengerRoot(MDScreen):
         )
 
     def load_chats(self, caller = None, force = False):
+        logger.info("Loading chats")
         chats_db = Chat.select().order_by(Chat.last_message_id.desc())
         if not self.ids.chats_container.children or force:
             self.ids.chats_container.clear_widgets()
@@ -216,6 +223,8 @@ class MessengerRoot(MDScreen):
                         screen_manager = self.ids.screen_manager,
                         last_message_id = chat.last_message_id or -1
                     ))
+            if not chats_db:
+                self.ids.chats_container.add_widget(MDLabel(text = "There is nothing here yet...", halign = "center", valign = "center"))
         else:
             changed = []
             for chat_db in chats_db:
@@ -231,7 +240,7 @@ class MessengerRoot(MDScreen):
                         changed.append(chat_ui)
                 else:
                     pos = -1 - len([chat for chat in self.ids.chats_container.children
-                                    if chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
+                                    if chat_db.last_message_id and chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
                     last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
                         chat = chat_db.id,
@@ -254,16 +263,18 @@ class MessengerRoot(MDScreen):
 
 
     def load_messages(self, caller = None, page=1, count=10, load_new = False):
+        logger.info("Loading messages")
         current_chat = self.ids.screen_manager.get_screen("chat_screen").current_chat
+        chat_title = self.ids.screen_manager.get_screen("chat_screen").chat_title
         if current_chat:
             chat = Chat.get_or_create(id = current_chat,
                                       defaults={"participants": {self.dev_addr: self.dev_addr,
                                                                  current_chat: current_chat},
                                                 "id": current_chat,
-                                                "display_name": hex(current_chat)})[0]
+                                                "display_name": chat_title or hex(current_chat)})[0]
             if isinstance(caller, MDScreen):
                 self.ids.messages_container.clear_widgets()
-                self.ids.messages_container.add_widget(MDLabel()) # заглушка, относительно которой цепляются другие виджеты
+                self.ids.messages_container.add_widget(MDLabel(halign = "center", valign = "center")) # заглушка, относительно которой цепляются другие виджеты
                 self.ids.toolbar_chat.title = chat.display_name
                 chat.unread = 0
                 chat.save()
@@ -284,6 +295,9 @@ class MessengerRoot(MDScreen):
                     for message in grouped_by_day:
                         self.draw_message(message)
                     self.ids.messages_container.add_widget(ChatDateHeader(date = date), -1)
+            if (p:= [el for el in self.ids.messages_container.children if isinstance(el, MDLabel)]) and not \
+                    [el for el in self.ids.messages_container.children if isinstance(el, MessageCardBase)]:
+                p[0].text = "There is nothing here yet..."
 
 
     def calc_width(self, len_text):
@@ -304,7 +318,7 @@ class MessengerRoot(MDScreen):
             card = MessageCardRight if message.sender == self.dev_addr else MessageCardLeft
             preferred_factor, reply_symbols = self.calc_width(len(message_content))
             if r:= message.reply_to:
-                message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" \
+                message_header = f"[ref=replied][b]> {message.chat.participants[Message.get(Message.id == r).sender]}[/b]\n" +\
                                  f"[i]> {Message.get(Message.id == r).content.get().content.decode('utf-8')[:reply_symbols]}...[/i][/ref]\n\n"
             elif f:= message.forwarded_from:
                 message_header = f"> Forwarded from [b] {f}[/b]\n\n"
@@ -385,6 +399,7 @@ class MessengerRoot(MDScreen):
     def delete_chat_callback(self, caller, chat):
         if caller.text == "DELETE" and (chat_db:= Chat.get_or_none(Chat.id == chat)):
             self.ids.screen_manager.get_screen("chat_screen").current_chat = 0
+            self.ids.screen_manager.get_screen("chat_screen").chat_title = ""
             chat_db.delete_instance()
             if chats_ui:= [c for c in self.ids.chats_container.children if c.chat == chat]:
                 self.ids.chats_container.remove_widget(chats_ui[0])
@@ -433,11 +448,14 @@ class MessengerRoot(MDScreen):
 
     def new_chat(self, caller):
         chat = 0
-        try: chat = int(self.ids.new_chat_id.text, 0)
+        try:
+            chat = int(self.ids.new_chat_id.text, 0)
+            title = self.ids.new_chat_title.text
         except: pass
         else:
             self.ids.new_chat_id.text = ""
             self.ids.screen_manager.get_screen("chat_screen").current_chat = chat
+            self.ids.screen_manager.get_screen("chat_screen").chat_title = title
             self.ids.screen_manager.get_screen("chat_screen").current_page = 1
             self.ids.screen_manager.current = "chat_screen"
 
@@ -579,14 +597,15 @@ class MessengerApp(MDApp):
     def on_start(self):
         Builder.load_file('chatcard.kv')
         Builder.load_file('messagecard.kv')
-        self.root.load_chats(None)
         self._device = Device(messenger_queue = self._messenger_queue,
                               process_interval = int(self.config.get('appsettings', 'PROCESS_INTERVAL')),
                               api_poll_interval = int(self.config.get('appsettings', 'API_POLL_INTERVAL')),
                               force_radio = int(self.config.get('appsettings', 'FORCE_LORA')))
         self.root.dev_addr = self.dev_addr
         self.root.ids.nav_profile.text = hex(self.dev_addr)
-
+        db.init(f"{hex(self.dev_addr)}.db" if self.dev_addr else settings.DB_MESSENGER)
+        db.create_tables([Message, Content, Chat])
+        self.root.load_chats(None)
         Clock.schedule_interval(self._connection_monitor, int(self.config.get('appsettings', 'PROCESS_INTERVAL')))
         #
         self.settings_cls = SettingsWithSpinner
@@ -618,7 +637,6 @@ class MessengerApp(MDApp):
         #     'pathexample': '/some/path'})
         config.read("messenger.ini")
 
-        # print(type(config))
     def build_settings(self, settings: Settings):
         settings.add_json_panel('App Settings',
                                 self.config,
@@ -670,7 +688,8 @@ class MessengerApp(MDApp):
                           direction = NetPacketDirection.OUT,
                           raw_data = bytes.fromhex(message_db.message_hash if parts else '') + message.packet[j:j+100])
             # если фрагментация, то нужно как-то убедиться, что пакеты фрагменты принадлежат одному сообщению
-            print("send_message fragment", a.packet)
+            logger.info(f"Sending message fragment ({i} of {parts})")
+            logger.debug(f"Sending message fragment ({i} of {parts}): {a.packet.hex()}")
             self._device.add_packet(a)
 
     def _process_messages(self):
@@ -678,7 +697,8 @@ class MessengerApp(MDApp):
             while not self._messenger_queue.empty():
                 packet: NetPacket = self._messenger_queue.get()
                 #if packet.dst_addr == settings.BROADCAST:
-                print(packet.packet)
+                logger.info(f"Proccessing new messenger packet")
+                logger.debug(f"Proccessing new messenger packet: {packet.packet.hex()}")
                 if packet.content_type == ContentType.TEXT:
                     message = MessagePacket(source_packet = packet.raw_data)
                     chat = Chat.get_or_create(id = packet.src_addr,
@@ -689,7 +709,7 @@ class MessengerApp(MDApp):
                     reply_to = 0
                     if message.reply_to and (m_rp:= Message.get_or_none((Message.message_hash == message.reply_to.hex()) & (Message.chat == chat))):
                         reply_to = m_rp.id
-                    print("HASH UI: ", message.hash)
+                    logger.debug(f"Message HASH: {message.hash}")
                     if not Message.select().where(Message.message_hash == message.hash):
                         m = Message.create(sender = packet.src_addr, recipient = packet.dst_addr, date_sent = message.date,
                                            forwarded_from = message.forwarded_from, reply_to = reply_to, chat = chat,
@@ -713,10 +733,11 @@ class MessengerApp(MDApp):
 
                         a = NetPacket(dst_addr = packet.src_addr, app_id = AppID.NETWORK, content_type = ContentType.L3CNFRP,
                                       direction = NetPacketDirection.OUT, raw_data = packet.hashsum)
-                        print("SEND CONFIRMATION", a.packet)
+                        logger.info(f"Sending confirmation")
+                        logger.debug(f"Sending confirmation: {a.packet.hex()}")
                         self._device.add_packet(a)
                     else:
-                        print("IGNORE")
+                        logger.info("Ignoring duplicate packet")
                 elif packet.content_type == ContentType.MESSAGE_OPTIONS:
                     pass
                     # определяем требуемое действие. возможно, нужно переотправить какое-то сообщение (фрагмент)
@@ -729,7 +750,7 @@ class MessengerApp(MDApp):
                 #    self._messenger_queue.put(packet)
 
         except Exception:
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
 
 if __name__ == "__main__":

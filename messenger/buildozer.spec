@@ -7,7 +7,7 @@ title = LoRa Messenger
 package.name = loramessenger
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.aelita
+package.domain = org.lain
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -16,20 +16,20 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json,db,ttf,pem,ini
 
 # (list) List of inclusions using pattern matching
-#source.include_patterns = assets/*,images/*.png
+source.include_patterns = assets/*,device/*
 
 # (list) Source files to exclude (let empty to not exclude anything)
 #source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-#source.exclude_dirs = tests, bin, venv
+source.exclude_dirs = venv,linux_bin,smartphone_bin,windows_bin
 
 # (list) List of exclusions using pattern matching
 # Do not prefix with './'
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-version = 0.7.6
+version = 0.8.3
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -38,7 +38,7 @@ version = 0.7.6
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
 # hostpython3==3.11.2,
-requirements = hostpython3==3.10.6,python3==3.10.6,sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow,requests,urllib3,charset-normalizer,chardet,idna
+requirements = hostpython3==3.10.6,python3==3.10.6,sqlite3,kivy==master,kivymd,python-dateutil,audiostream,usb4a,pyjnius==master,pyusb,peewee,anytree,tinyec,pure_salsa20,Pillow,requests,urllib3,charset-normalizer,chardet,idna,sqlitedict
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
@@ -47,7 +47,7 @@ requirements = hostpython3==3.10.6,python3==3.10.6,sqlite3,kivy==master,kivymd,p
 #presplash.filename = %(source.dir)s/data/presplash.png
 
 # (str) Icon of the application
-#icon.filename = %(source.dir)s/data/icon.png
+icon.filename = %(source.dir)s/assets/icons/app_icon.png
 
 # (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
 orientation = portrait
@@ -80,13 +80,14 @@ fullscreen = 0
 # red, blue, green, black, white, gray, cyan, magenta, yellow, lightgray,
 # darkgray, grey, lightgrey, darkgrey, aqua, fuchsia, lime, maroon, navy,
 # olive, purple, silver, teal.
-#android.presplash_color = #FFFFFF
+android.presplash_color = #FFFFFF
 
 # (string) Presplash animation using Lottie format.
 # see https://lottiefiles.com/ for examples and https://airbnb.design/lottie/
 # for general documentation.
 # Lottie files can be created using various tools, like Adobe After Effect or Synfig.
-#android.presplash_lottie = "path/to/lottie/file.json"
+android.presplash_lottie = %(source.dir)s/assets/icons/technology.json
+#assets/technology.json
 
 # (str) Adaptive icon of the application (used if Android API level is 26+ at runtime)
 #icon.adaptive_foreground.filename = %(source.dir)s/data/icon_fg.png
@@ -184,8 +185,8 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,RECORD_AUD
 # Either form may be used, and assets need not be in 'source.include_exts'.
 # 1) android.add_assets = source_asset_relative_path
 # 2) android.add_assets = source_asset_path:destination_asset_relative_path
-android.add_assets = assets/test/avatars,assets/certs,assets/fonts,assets/avatars,device
-
+#android.add_assets = device
+#assets/test/avatars,assets/certs,assets/fonts,assets/avatars,
 # (list) Put these files or directories in the apk res directory.
 # The option may be used in three ways, the value may contain one or zero ':'
 # Some examples:

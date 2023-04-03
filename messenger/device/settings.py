@@ -5,7 +5,8 @@ CURVE = 'secp224r1'
 BROADCAST = 0xffffffff
 PING_INTERVAL = 30
 PING_URL = 'https://lain-is.online/ping'
-DB_NAME = 'loramessenger.db'
+DB_MESSENGER = 'loramessenger.db'
+DB_DATA = "data.db"
 VID = 0x16c0
 PID = 0x05dc
 CHECK_INTERVAL = 0.8
@@ -23,8 +24,9 @@ ASSETS_CERTS = "./assets/certs"
 ASSETS_FONTS = "./assets/fonts"
 FONT = "Roboto-Regular-Emoji.ttf"
 DEFAULT_AVATAR = "anonymous.jpg"
-APP_VERSION = "0.7.6"
+APP_VERSION = "0.8.3"
 
+DEBUG = True
 
 settings_options = json.dumps([
 	{'type': 'title',
@@ -83,3 +85,38 @@ settings_options = json.dumps([
 	{'type': 'title',
 	 'title': f'LoraMessenger: {APP_VERSION}'}
 ])
+
+
+LOGGING_CONF = {
+	"disable_existing_loggers": False,
+	"version": 1,
+	"formatters": {
+		"verbose": {
+			"format": "%(levelname)-8s %(asctime)s.%(msecs)03d [%(name)s.%(filename)s:%(funcName)s:%(lineno)d] %(message)s",
+			"datefmt": "%Y-%m-%d %H:%M:%S",
+		},
+		"brief": {
+			"format": "%(levelname)-8s %(asctime)s %(name)-16s %(message)s",
+		}
+	},
+	"handlers": {
+		"console": {
+			"level": "DEBUG",
+			"class": "logging.StreamHandler",
+			"formatter": "verbose" if DEBUG else "brief",
+		},
+		"file": {
+			"level": "DEBUG",
+			"class": "logging.FileHandler",
+			"formatter": "verbose" if DEBUG else "brief",
+			"filename": "loramobgate.log",
+			"mode": "w"
+		},
+	},
+	"loggers": {
+		"loramobgate": {
+			"level": "DEBUG" if DEBUG else "INFO",
+			"handlers": ["console", "file"],
+		},
+	},
+}

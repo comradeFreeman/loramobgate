@@ -3,7 +3,7 @@ from peewee import SqliteDatabase, IntegerField, DateTimeField, \
 	ForeignKeyField, CompositeKey, BooleanField, BlobField, CharField, SmallIntegerField, VirtualField
 
 import settings
-from settings import DB_NAME, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
+from settings import DB_MESSENGER, BROADCAST, ASSETS_CERTS, ASSETS_FONTS, ASSETS_AVATARS, DEFAULT_AVATAR
 from os import path
 from datetime import datetime, timedelta, timezone
 from playhouse.signals import pre_save, Model
@@ -33,7 +33,7 @@ def generate_avatar(text, prev_name = None):
 
 localtz = datetime.now().astimezone().tzinfo
 
-db = SqliteDatabase(DB_NAME, pragmas={ 'journal_mode': 'wal', 'cache_size': -1024 * 64, 'foreign_keys': 1})
+db = SqliteDatabase(None, pragmas={'journal_mode': 'wal', 'cache_size': -1024 * 64, 'foreign_keys': 1})
 
 
 class EnumField(SmallIntegerField):
@@ -208,6 +208,6 @@ def update_messagehash(model_class, content_obj: Content, created):
 	).hexdigest()
 	message_obj.save()
 
-db.connect()
-db.create_tables([Message, Content, Chat])
-db.close()
+# db.connect()
+# db.create_tables([Message, Content, Chat])
+# db.close()

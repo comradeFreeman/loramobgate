@@ -189,16 +189,32 @@ MessengerRoot:
                 MDBoxLayout:
                     padding: "15dp", 0, "15dp", 0
 
-                    MDTextField:
-                        id: new_chat_id
-                        mode: "line"
-                        hint_text: "ID"
-                        helper_text: "Enter ID of user you want start conversation with. Both decimal and hex format are accepted"
-                        pos_hint: { "center_y": .5 }
-                        set_text: root.check_id
-                        valign: "center"
-                        font_size: "20sp"
-                        text_color_normal: "#56de47"
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        size_hint_y: None
+                        pos_hint: {"center_y": .5}
+
+                        MDTextField:
+                            id: new_chat_id
+                            mode: "line"
+                            hint_text: "ID"
+                            helper_text: "Enter ID of user you want start conversation with. Both decimal and hex format are accepted"
+                            #pos_hint: { "center_y": .5 }
+                            set_text: root.check_id
+                            #valign: "center"
+                            font_size: "20sp"
+                            text_color_normal: "#56de47"
+
+                        MDTextField:
+                            id: new_chat_title
+                            mode: "line"
+                            hint_text: "Title (not mandatory)"
+                            helper_text: "Enter preferred title of conversation"
+                            #pos_hint: { "center_y": .5 }
+#                            set_text: root.check_id
+                            #valign: "center"
+                            font_size: "20sp"
+                            text_color_normal: "#56de47"
 
                     MDIconButton:
                         id: new_chat
@@ -212,6 +228,7 @@ MessengerRoot:
             MDScreen:
                 name: "chat_screen"
                 current_chat: root.current_chat
+                chat_title: root.chat_title
                 current_page: root.current_page
                 on_pre_enter: root.load_messages(self)
                 on_leave: input_field.text = ""

@@ -28,6 +28,10 @@ from anytree.exporter import JsonExporter
 from os import path, environ
 import declarations as s
 import requests
+import logging
+logger = logging.getLogger("loramobgate.device")
+from sqlitedict import SqliteDict
+pubkeys = SqliteDict(settings.DB_DATA, tablename="pubkeys") #, autocommit=True)
 
 #from kivy.utils import platform
 platform = "unknown"
@@ -46,8 +50,6 @@ else:
 
 
 
-def print_with_date(string):
-	print(datetime.now(), string)
 
 def try_pickle(value):
 	try:
@@ -196,7 +198,7 @@ class Transaction(threading.Thread):
 			if self.packet_hash in self.transaction_dict and self._queue \
 					and self.packet.direction == NetPacketDirection.OUT \
 					and self.packet.app_id == AppID.MESSENGER:
-				print(f"NO CONFIRMATION RECEIVED FOR {self.packet.packet}")
+				logger.debug(f"No confirmation received for {self.packet.packet}")
 				dupl = self.packet.duplicate()
 				if i % 2: # 1,3
 					dupl.try_radio = True
@@ -224,7 +226,7 @@ class InternetConnection:
 
 	def _check_inet(self):
 		try:
-			r = requests.head(settings.PING_URL, verify = False)
+			r = requests.head(settings.PING_URL)
 			if r.status_code == 200:
 				self._avail = True
 				return
@@ -260,7 +262,7 @@ class InternetConnection:
 			if r.status_code != 200:
 				raise
 		except:
-			traceback.print_exc()
+			logger.error(traceback.format_exc())
 		else:
 			self._avail = True
 			return r.json()
@@ -271,7 +273,7 @@ class InternetConnection:
 		self._token_thread.cancel()
 
 
-class Routing:
+class Network:
 	dev_addr = 0
 	def __init__(self, packets_queue, keys, ttl_neighbor=settings.TTL_NEIGHBOR, ttl_transactions=settings.TTL_TRANSACTION):
 		self._keys: Keys = keys
@@ -342,10 +344,11 @@ class Routing:
 
 	################################### NETWORK
 	def process_network_event(self, packet):
+		logger.info(f"New network event of type {packet.app_id}")
 		if packet.is_valid and packet.app_id == AppID.NETWORK and packet.direction == NetPacketDirection.IN:
+			logger.debug(f"Proccessing: {packet.content_type} {packet.raw_data.hex()}")
 			match packet.content_type:
 				case ContentType.L3CNFRP:
-					print("CONFIRMATION ", packet.raw_data)
 					if packet.raw_data in self._last_transactions: # =hash in last_transactions
 						del self._last_transactions[packet.raw_data]
 					return
@@ -404,7 +407,7 @@ class Routing:
 						queue = self._packets_queue,
 						ttl = custom_ttl or self.ttl_transactions * 3).start()
 		except Exception:
-			print(traceback.format_exc())
+			logger.error(traceback.format_exc())
 
 	def is_recent(self, packet: NetPacket) -> bool:
 		return packet.hashsum in self._last_transactions
@@ -456,8 +459,7 @@ class UsbConnection:
 				sleep(1)
 				self.open_device()
 			except:
-				traceback.print_stack()
-				traceback.print_exc()
+				logger.error(traceback.format_exc())
 				return None
 			finally:
 				if lock.locked():
@@ -547,7 +549,7 @@ class UsbPacket:  # тут будет формирование и хранени
 class Keys:
 	def __init__(self, private_key, packets_queue: queue.Queue):
 		self.curve = reg.get_curve(settings.CURVE)
-		self._keys = {}
+		self._keys = dict(pubkeys.items())
 		self._private_key = int.from_bytes(private_key, byteorder='big')
 		self._public_key = self.curve.g * self._private_key
 		self._packets_queue = packets_queue
@@ -585,7 +587,7 @@ class Keys:
 		if not isinstance(public_key, ec.Point) and isinstance(public_key, list):
 			public_key = ec.Point(self.curve, *public_key)
 		self._keys[dev_addr] = { 'public_key': public_key,
-								 'session_key': self.generate_session_key(public_key) }
+			  					 'session_key': self.generate_session_key(public_key) }
 
 	def get_pk(self, dev_addr):
 		if dev_addr in self._keys.keys():
@@ -618,6 +620,14 @@ class Keys:
 
 	def stop(self):
 		self.rsk.cancel()
+		# if "keys" not in self._keys:
+		# 	pubkeys['keys'] = {}
+		# print("keys: ", self._keys.items())
+		for dev_addr, data in self._keys.items():
+			pubkeys[dev_addr] = data
+		else:
+			pubkeys.commit()
+			#TODO
 
 
 class Device:
@@ -637,7 +647,7 @@ class Device:
 		self._route_thread = RepeatTimer(self._process_interval, self._route_net_packets)
 		self._packets_queue = queue.Queue()
 		self._keys = Keys(private_key=_, packets_queue = self._packets_queue)
-		self._routing = Routing(packets_queue = self._packets_queue, keys = self._keys)
+		self._net = Network(packets_queue = self._packets_queue, keys = self._keys)
 		self._partial_packets = {}
 		self._initialize()
 
@@ -651,7 +661,7 @@ class Device:
 
 	@property
 	def neighbors(self):
-		return self._routing.neighbors()
+		return self._net.neighbors()
 
 	@property
 	def queue_size(self):
@@ -666,7 +676,7 @@ class Device:
 
 	def stop(self):
 		# TODO сохранить содержимое очередей. подумать о порядке
-		self._routing.stop()
+		self._net.stop()
 		self._check_msg_thread.cancel()
 		self._check_msg_thread_inet.cancel()
 		self._route_thread.cancel()
@@ -695,8 +705,7 @@ class Device:
 			private_key = bytes(UsbPacket(source_packet=self.send_command(command=s.USB_GET_PRIVATE_KEY)).payload)
 			chip = Chip(UsbPacket(source_packet=self.send_command(command=s.USB_GET_MODULE)).payload)
 		except Exception:
-			traceback.print_stack()
-			traceback.print_exc()
+			logger.error(traceback.format_exc())
 		finally:
 			dev_info = \
 				{
@@ -706,7 +715,7 @@ class Device:
 					'chip': chip
 				}
 			NetPacket.dev_addr = dev_addr
-			Routing.dev_addr = dev_addr
+			Network.dev_addr = dev_addr
 			return dev_info, dev_addr, private_key
 
 	# чтобы объект мог менять отправителя
@@ -722,7 +731,7 @@ class Device:
 			# приём
 			self.send_command(usb_packet = UsbPacket(opcode = s.M_REQUEST, argc = 2, args = [[s.SX126X_RX_CONTINUOUS, 4], [True, 1]]))
 		except:
-			print_with_date(traceback.format_exc())
+			logger.error(traceback.format_exc())
 		else:
 			if not self._route_thread.is_alive():
 				self._route_thread.start()
@@ -779,11 +788,10 @@ class Device:
 		try:
 			if answer:= self._inet.request(settings.PACKET_ENDPOINT):
 				for net_packet_ip in answer['packets']:
-					print(net_packet_ip)
 					if (packet:= NetPacket(source_packet = bytes.fromhex(net_packet_ip['packet']))).is_valid:
 						self._packets_queue.put(packet)
 		except:
-			traceback.print_exc()
+			logger.error(traceback.format_exc())
 
 	# при отправке заносить хэш сумму пакета в self._last_transactions и новый ttl
 	# также можно при поступлении уже отправленного пакета отклонять его. но тогда вероятно нужен timestamp
@@ -801,27 +809,28 @@ class Device:
 					))
 				# Если спарсили и не валид, то это - Лора, помещаем её опять в Нетпакет,
 				# но уже в качестве полезной нагрузки
-				print_with_date("check: " + str(packet))
+				logger.debug(f"New packet from device: {packet}")
 		except Exception:
-			traceback.print_stack()
-			traceback.print_exc()
+			logger.error(traceback.format_exc())
 
 	def _route_net_packets(self):  # возможно переделать в повторяемый поток через Х время
 		try:
 			while not self._packets_queue.empty(): # and self.device_available:
 				packet: NetPacket = self._packets_queue.get() # если это не отправленный нами вернувшийся пакет
-				if not self._routing.is_recent(packet):
+				logger.info(f"New packet")
+				if not self._net.is_recent(packet):
 					# запомнили на время, что мы что-то приняли или отправили
-					self._routing.new_transaction_event(packet)
+					self._net.new_transaction_event(packet)
 					# не совсем корректно делать это ДО, а не ПОСЛЕ, но пакет меняется дальше и меняется его хэш
 					if packet.direction == NetPacketDirection.IN: # если это принятый пакет
 						match packet.app_id:
 							case AppID.NETWORK: # события сети
-								self._routing.process_network_event(packet)
+								self._net.process_network_event(packet)
 							case AppID.MESSENGER: # события мессенджера
 								# или всё равно отправляем в месседж_квек, а там уже мессенджер будет периодически
 								# ходить по нерасшифрованным сообщениям и давать запросы на ключ
 								if packet.is_fragmented:
+									logger.debug(f"Messenger fragmented packet: {packet.packet.hex()}")
 									if packet.raw_data[:16].hex() not in self._partial_packets.keys():
 										self._partial_packets[packet.raw_data[:16].hex()] = [0] * packet.fragm_c
 									self._partial_packets[packet.raw_data[:16].hex()][packet.fragment] = packet.raw_data[16:]
@@ -830,8 +839,7 @@ class Device:
 										full.raw_data = b''.join(self._partial_packets[packet.raw_data[:16].hex()])
 										self._messenger_queue.put(full)
 										del self._partial_packets[packet.raw_data[:16].hex()]
-										print(full)
-									print(self._partial_packets)
+										logger.debug(f"All fragments of fragmented packet are collected. Packet: {full.packet.hex()}")
 								else:
 									self._messenger_queue.put(packet)
 								if (packet.dst_addr == settings.BROADCAST):
@@ -845,20 +853,19 @@ class Device:
 					else: # если это пакет на отправку
 					# здесь как-то надо сделать развилку, что, мол, если есть сеть, то через неё слать, а иначе - в эфир
 						if not self._inet.available or self.force_radio or packet.try_radio:
-							print("About to transmit ", packet.packet)
+							logger.debug(f"About to transmit {packet.packet.hex()}")
 							if not self.transmit_data(packet):
 								self._packets_queue.put(packet)
 							sleep(.2)
 						else:
 							if not self._inet.request(settings.PACKET_ENDPOINT, packet):
 								self._packets_queue.put(packet)
-							print("Internet transmit")
+							logger.debug(f"Internet transmit of {packet.packet.hex()}")
 
-				print_with_date(("-->" if packet.direction == NetPacketDirection.IN else "<--") + " process: " + str(packet))
+				logger.debug(("-->" if packet.direction == NetPacketDirection.IN else "<--") + " process: " + packet.packet.hex())
 
 		except Exception:
-			traceback.print_stack()
-			traceback.print_exc()
+			logger.error(traceback.format_exc())
 
 """
 

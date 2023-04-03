@@ -51,7 +51,7 @@ static uint8_t debugBuf[80] = "DEBUG.";
 #endif
 static uint8_t volatile usb_opCode = 0;
 static uint16_t volatile avail = 0;
-static bool volatile ready, lock = false;
+static bool volatile ready, lock, ledEnabled = false;
 static uint16_t dataSent, pydst, dataReceived = 0, dataLength = 0;
 static uint8_t message_size, flag;
 static RINGBUF_t ringbuf;
@@ -110,11 +110,19 @@ USB_PUBLIC usbMsgLen_t usbFunctionSetup(uchar data[8])
       return *(uint16_t*)&controlBuf[RET_PYDC] + 3;
     
     case USB_ENABLE_MODULE:
-      PORTD |= 1 << 6;
+      PORTD |= 1 << 1;
       return 0;
       
     case USB_DISABLE_MODULE:
-      PORTD &= ~(1 << 6);
+      PORTD &= ~(1 << 1);
+      return 0;
+      
+    case USB_LED_ENABLE:
+      ledEnabled = true;
+      return 0;
+      
+    case USB_LED_DISABLE:
+      ledEnabled = false;
       return 0;
 
     case USB_RADIO_RETRIEVE_MESSAGE: // Mega -> PC
@@ -470,7 +478,7 @@ void storeMessage() {
 }
 
 void setup() {
-  PORTD |= 1 << 6; // enable 3.3 V supply on module
+  //PORTD |= 1 << 6; // enable 3.3 V supply on module
   uint16_t i;
   RingBuf_Init(msgBuffer, BUFFLEN, sizeof(uint8_t), &ringbuf);
   RingBuf_Clear(&ringbuf);
