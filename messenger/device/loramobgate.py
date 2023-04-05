@@ -33,6 +33,9 @@ logger = logging.getLogger("loramobgate.device")
 from sqlitedict import SqliteDict
 pubkeys = SqliteDict(settings.DB_DATA, tablename="pubkeys") #, autocommit=True)
 
+from sqlitedict import SqliteDict
+pubkeys = SqliteDict(settings.DB_DATA, tablename="pubkeys") #, autocommit=True)
+
 #from kivy.utils import platform
 platform = "unknown"
 

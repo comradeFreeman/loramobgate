@@ -1,3 +1,1 @@
-## LoRaMobGate Project
-
-##### comming soon...
+README_ru.md

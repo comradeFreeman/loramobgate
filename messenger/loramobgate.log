@@ -1,40 +1,50 @@
-INFO     2023-04-03 21:21:29.814 [loramobgate.messenger.main.py:<module>:55] Log of messenger started
-INFO     2023-04-03 21:21:31.872 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:21:33.231 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:21:33.232 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:21:38.200 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:21:38.200 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:21:43.278 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:21:43.283 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:21:48.200 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:21:48.200 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:21:51.547 [loramobgate.device.loramobgate.py:_route_net_packets:820] New packet
-INFO     2023-04-03 21:21:51.557 [loramobgate.device.loramobgate.py:process_network_event:347] New network event of type AppID.NETWORK
-DEBUG    2023-04-03 21:21:51.557 [loramobgate.device.loramobgate.py:process_network_event:349] Proccessing: ContentType.L3NEIGHBORINFO 8004950b000000000000005d948a0587f9cdab00612e
-DEBUG    2023-04-03 21:21:51.558 [loramobgate.device.loramobgate.py:_route_net_packets:865] --> process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
-INFO     2023-04-03 21:21:51.558 [loramobgate.device.loramobgate.py:_route_net_packets:820] New packet
-INFO     2023-04-03 21:21:51.568 [loramobgate.device.loramobgate.py:process_network_event:347] New network event of type AppID.NETWORK
-DEBUG    2023-04-03 21:21:51.569 [loramobgate.device.loramobgate.py:process_network_event:349] Proccessing: ContentType.L3KEYEX 8004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
-DEBUG    2023-04-03 21:21:51.622 [loramobgate.device.loramobgate.py:_route_net_packets:865] <-- process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
-INFO     2023-04-03 21:21:51.623 [loramobgate.device.loramobgate.py:_route_net_packets:820] New packet
-DEBUG    2023-04-03 21:21:51.623 [loramobgate.device.loramobgate.py:_route_net_packets:865] <-- process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
-INFO     2023-04-03 21:21:53.209 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:21:53.210 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:21:58.207 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:21:58.208 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:22:01.624 [loramobgate.device.loramobgate.py:_route_net_packets:820] New packet
-DEBUG    2023-04-03 21:22:01.625 [loramobgate.device.loramobgate.py:_route_net_packets:865] <-- process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
-INFO     2023-04-03 21:22:03.195 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:22:03.195 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:22:06.626 [loramobgate.device.loramobgate.py:_route_net_packets:820] New packet
-DEBUG    2023-04-03 21:22:06.627 [loramobgate.device.loramobgate.py:_route_net_packets:865] --> process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
-INFO     2023-04-03 21:22:08.290 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:22:08.291 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:22:13.200 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:22:13.201 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:22:18.212 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:22:18.213 [loramobgate.messenger.main.py:load_chats:208] Loading chats
-INFO     2023-04-03 21:22:21.632 [loramobgate.device.loramobgate.py:_route_net_packets:820] New packet
-DEBUG    2023-04-03 21:22:21.633 [loramobgate.device.loramobgate.py:_route_net_packets:865] --> process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
-INFO     2023-04-03 21:22:23.210 [loramobgate.messenger.main.py:load_messages:266] Loading messages
-INFO     2023-04-03 21:22:23.210 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:09.558 [loramobgate.messenger.main.py:<module>:55] Log of messenger started
+INFO     2023-04-03 22:27:11.451 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:12.941 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:12.941 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:17.925 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:17.925 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:22.927 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:22.927 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:27.927 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:27.927 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:32.930 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:32.931 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:37.925 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:37.926 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:41.405 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:27:41.619 [loramobgate.device.loramobgate.py:_route_net_packets:866] Internet transmit of 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+DEBUG    2023-04-03 22:27:41.619 [loramobgate.device.loramobgate.py:_route_net_packets:868] <-- process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+INFO     2023-04-03 22:27:41.620 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:27:41.620 [loramobgate.device.loramobgate.py:_route_net_packets:868] <-- process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+INFO     2023-04-03 22:27:42.940 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:42.941 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:46.621 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:27:46.622 [loramobgate.device.loramobgate.py:_route_net_packets:868] --> process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+INFO     2023-04-03 22:27:48.020 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:48.020 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:52.937 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:52.938 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:27:57.937 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:27:57.937 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:28:01.623 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:28:01.623 [loramobgate.device.loramobgate.py:_route_net_packets:868] --> process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+INFO     2023-04-03 22:28:02.950 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:28:02.950 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:28:07.968 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:28:07.969 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:28:11.624 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:28:11.625 [loramobgate.device.loramobgate.py:_route_net_packets:868] <-- process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+INFO     2023-04-03 22:28:11.626 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:28:11.869 [loramobgate.device.loramobgate.py:_route_net_packets:866] Internet transmit of 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
+DEBUG    2023-04-03 22:28:11.870 [loramobgate.device.loramobgate.py:_route_net_packets:868] <-- process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
+INFO     2023-04-03 22:28:11.870 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:28:11.871 [loramobgate.device.loramobgate.py:_route_net_packets:868] <-- process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
+INFO     2023-04-03 22:28:12.966 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:28:12.967 [loramobgate.messenger.main.py:load_chats:208] Loading chats
+INFO     2023-04-03 22:28:16.871 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:28:16.872 [loramobgate.device.loramobgate.py:_route_net_packets:868] --> process: 87f9cdabffffffff00000217148004950b000000000000005d948a0587f9cdab00612e
+INFO     2023-04-03 22:28:16.872 [loramobgate.device.loramobgate.py:_route_net_packets:823] New packet
+DEBUG    2023-04-03 22:28:16.873 [loramobgate.device.loramobgate.py:_route_net_packets:868] --> process: 87f9cdabffffffff00000257158004954b000000000000007d948a0587f9cdab005d94288a1cb89418efd50ef1c1f27ae5c0918ffcc53e831ab9d7df84f210d9710d8a1c6f62d0a5c72fe56a2e914ffc4b292ee041d38407f3bc29ee78155a2865732e
+INFO     2023-04-03 22:28:17.965 [loramobgate.messenger.main.py:load_messages:266] Loading messages
+INFO     2023-04-03 22:28:17.966 [loramobgate.messenger.main.py:load_chats:208] Loading chats

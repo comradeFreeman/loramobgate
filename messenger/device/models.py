@@ -36,6 +36,7 @@ localtz = datetime.now().astimezone().tzinfo
 db = SqliteDatabase(None, pragmas={'journal_mode': 'wal', 'cache_size': -1024 * 64, 'foreign_keys': 1})
 
 
+
 class EnumField(SmallIntegerField):
 	"""This class enables a Enum like field for Peewee."""
 	def __init__(self, enum, *args, **kwargs):

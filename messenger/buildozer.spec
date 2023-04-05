@@ -29,7 +29,7 @@ source.exclude_dirs = venv,linux_bin,smartphone_bin,windows_bin
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-version = 0.8.3
+version = 0.9.2
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
