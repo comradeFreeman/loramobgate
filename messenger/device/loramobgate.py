@@ -233,7 +233,7 @@ class InternetConnection:
 			if r.status_code == 200:
 				self._avail = True
 				return
-			raise
+			self._avail = True
 		except Exception:
 			self._avail = False
 
@@ -263,7 +263,7 @@ class InternetConnection:
 			if r.status_code == 401: # unauthorized
 				self._update_token()
 			if r.status_code != 200:
-				raise
+				raise BaseException
 		except:
 			logger.error(traceback.format_exc())
 		else:

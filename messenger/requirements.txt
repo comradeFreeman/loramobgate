@@ -1,5 +1,5 @@
-Cython
 aioredis
+altgraph
 anyio
 anytree
 appdirs
@@ -12,7 +12,6 @@ click
 colorama
 cryptography
 distlib
-dnspython
 docutils
 ecdsa
 email-validator
@@ -27,7 +26,6 @@ idna
 Jinja2
 jnius
 Kivy
-Kivy-Garden
 kivymd
 MarkupSafe
 more-itertools
@@ -54,7 +52,7 @@ python-ulid
 pytz
 pytzdata
 pyusb
-redis==4.5.1
+redis
 redis-om
 redisearch
 rejson

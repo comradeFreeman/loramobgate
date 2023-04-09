@@ -1,4 +1,20 @@
 /*
+Loramobgate is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Loramobgate is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Loramobgate; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+/*
    loRaRF + V-USB
 */
 
@@ -116,7 +132,7 @@ USB_PUBLIC usbMsgLen_t usbFunctionSetup(uchar data[8])
     case USB_DISABLE_MODULE:
       PORTD &= ~(1 << 1);
       return 0;
-      
+
     case USB_LED_ENABLE:
       ledEnabled = true;
       return 0;
@@ -459,6 +475,7 @@ USB_PUBLIC uchar usbFunctionRead(uchar *data, uchar len)
 }
 void storeMessage() {
   if (!lock) {
+    PORTC |= ((1 & ledEnabled) << 2);
     ready = false;
     uint16_t portion_size = 8, a, temp = 0; // <= 8 byte portion to read every transaction
     uint8_t smallbuff[portion_size] = {0,};
@@ -473,12 +490,13 @@ void storeMessage() {
         portion_size = temp;
       }
     }
+    PORTC &= ~((1 & ledEnabled) << 2);
     ready = true;
   }
 }
 
 void setup() {
-  //PORTD |= 1 << 6; // enable 3.3 V supply on module
+  //PORTD |= 1 << 1; // enable 3.3 V supply on module
   uint16_t i;
   RingBuf_Init(msgBuffer, BUFFLEN, sizeof(uint8_t), &ringbuf);
   RingBuf_Clear(&ringbuf);
@@ -492,11 +510,23 @@ void setup() {
 #elif defined(SX127X)
   module.setPins(NSSPIN, RSTPIN, IRQPIN, TXENPIN, RXENPIN);
 #endif
-
+    
   if (!module.begin()) {
     while (1);
   }
+
   module.onReceive(storeMessage);
+  PORTC |= (1 << 2);
+  _delay_ms(100);
+  PORTC &= ~(1 << 2);
+  _delay_ms(50);
+  PORTC |= (1 << 2);
+  _delay_ms(50);
+  PORTC &= ~(1 << 2);
+  _delay_ms(50);
+  PORTC |= (1 << 2);
+  _delay_ms(100);
+  PORTC &= ~(1 << 2);
   usbInit();
   usbDeviceDisconnect();  // принудительная повторная энумерация
   for (i = 0; i < 250; i++)
@@ -507,6 +537,7 @@ void setup() {
   }
   usbDeviceConnect();
   // Разрешить прерывания после повторной енумерации:
+
   sei();
 }
 

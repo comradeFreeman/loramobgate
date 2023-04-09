@@ -28,7 +28,7 @@ from kivymd.uix.dialog import MDDialog
 from typing import Union
 from kivy.clock import Clock
 
-from audiostream import get_input
+#from audiostream import get_input
 from datetime import datetime, timedelta
 from typing import Iterable
 from kivy.core.text import FontContextManager
@@ -206,60 +206,63 @@ class MessengerRoot(MDScreen):
 
     def load_chats(self, caller = None, force = False):
         logger.info("Loading chats")
-        chats_db = Chat.select().order_by(Chat.last_message_id.desc())
-        if not self.ids.chats_container.children or force:
-            self.ids.chats_container.clear_widgets()
-            for chat in chats_db:
-                last_message: Message = Message.get_or_none(Message.id == chat.last_message_id)
-                self.ids.chats_container.add_widget(ChatCard(
-                        chat = chat.id,
-                        display_name = f"[b]{chat.display_name}[/b]",
-                        message = last_message.content.get().content.decode('utf-8') if last_message else "",
-                        avatar = chat.avatar,
-                        time = last_message.date_received.astimezone(localtz).strftime("%H:%M"
-                        if last_message.date_received.day == datetime.utcnow().day
-                        else "%d %b") if last_message else "",
-                        unread = chat.unread,
-                        screen_manager = self.ids.screen_manager,
-                        last_message_id = chat.last_message_id or -1
-                    ))
-            if not chats_db:
-                self.ids.chats_container.add_widget(MDLabel(text = "There is nothing here yet...", halign = "center", valign = "center"))
-        else:
-            changed = []
-            for chat_db in chats_db:
-                if chat_ui:= [el for el in self.ids.chats_container.children if el.chat == chat_db.id]:
-                    chat_ui = chat_ui[0]
-                    chat_ui.unread = chat_db.unread
-                    if (chat_ui.last_message_id != chat_db.last_message_id) and (last_message:= Message.get_or_none(Message.id == chat_db.last_message_id)):
-                        chat_ui.last_message_id = chat_db.last_message_id
-                        if last_message.content.get().ready:
-                            chat_ui.message = last_message.content.get().content.decode('utf-8')
-                        chat_ui.time = last_message.date_received.astimezone(localtz).strftime("%H:%M" if last_message.date_received.day == datetime.utcnow().day else "%d %b")
-                    if self.ids.chats_container.children.index(chat_ui) != list(chats_db)[::-1].index(chat_db): # разница в нумерации
-                        changed.append(chat_ui)
-                else:
-                    pos = -1 - len([chat for chat in self.ids.chats_container.children
-                                    if chat_db.last_message_id and chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
-                    last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
+        try:
+            chats_db = Chat.select().order_by(Chat.last_message_id.desc())
+            if not self.ids.chats_container.children or force:
+                self.ids.chats_container.clear_widgets()
+                for chat in chats_db:
+                    last_message: Message = Message.get_or_none(Message.id == chat.last_message_id)
                     self.ids.chats_container.add_widget(ChatCard(
-                        chat = chat_db.id,
-                        display_name = f"[b]{chat_db.display_name}[/b]",
-                        message = last_message.content.get().content.decode('utf-8') if last_message else "",
-                        avatar = chat_db.avatar,
-                        time = last_message.date_received.astimezone(localtz).strftime("%H:%M"
-                                                                                       if last_message.date_received.day == datetime.utcnow().day
-                                                                                       else "%d %b") if last_message else "",
-                        unread = chat_db.unread,
-                        screen_manager = self.ids.screen_manager,
-                        last_message_id = chat_db.last_message_id or -1
-                    ), pos)
-                    # TODO test
-                    # Вроде как неправильно работает
-
-            for item in changed[::-1]: # начинаем с добавления наверх "более старых" новых сообщений
-                self.ids.chats_container.remove_widget(item)
-                self.ids.chats_container.add_widget(item, -1)
+                            chat = chat.id,
+                            display_name = f"[b]{chat.display_name}[/b]",
+                            message = last_message.content.get().content.decode('utf-8') if last_message else "",
+                            avatar = chat.avatar,
+                            time = last_message.date_received.astimezone(localtz).strftime("%H:%M"
+                            if last_message.date_received.day == datetime.utcnow().day
+                            else "%d %b") if last_message else "",
+                            unread = chat.unread,
+                            screen_manager = self.ids.screen_manager,
+                            last_message_id = chat.last_message_id or -1
+                        ))
+                if not chats_db:
+                    self.ids.chats_container.add_widget(MDLabel(text = "There is nothing here yet...", halign = "center", valign = "center"))
+            else:
+                changed = []
+                for chat_db in chats_db:
+                    if chat_ui:= [el for el in self.ids.chats_container.children if isinstance(el, ChatCard) and el.chat == chat_db.id]:
+                        chat_ui = chat_ui[0]
+                        chat_ui.unread = chat_db.unread
+                        if (chat_ui.last_message_id != chat_db.last_message_id) and (last_message:= Message.get_or_none(Message.id == chat_db.last_message_id)):
+                            chat_ui.last_message_id = chat_db.last_message_id
+                            if last_message.content.get().ready:
+                                chat_ui.message = last_message.content.get().content.decode('utf-8')
+                            chat_ui.time = last_message.date_received.astimezone(localtz).strftime("%H:%M" if last_message.date_received.day == datetime.utcnow().day else "%d %b")
+                        if self.ids.chats_container.children.index(chat_ui) != list(chats_db)[::-1].index(chat_db): # разница в нумерации
+                            changed.append(chat_ui)
+                    else:
+                        pos = -1 - len([chat for chat in self.ids.chats_container.children
+                                        if chat_db.last_message_id and chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
+                        last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
+                        self.ids.chats_container.add_widget(ChatCard(
+                            chat = chat_db.id,
+                            display_name = f"[b]{chat_db.display_name}[/b]",
+                            message = last_message.content.get().content.decode('utf-8') if last_message else "",
+                            avatar = chat_db.avatar,
+                            time = last_message.date_received.astimezone(localtz).strftime("%H:%M"
+                                                                                           if last_message.date_received.day == datetime.utcnow().day
+                                                                                           else "%d %b") if last_message else "",
+                            unread = chat_db.unread,
+                            screen_manager = self.ids.screen_manager,
+                            last_message_id = chat_db.last_message_id or -1
+                        ), pos)
+                        # TODO test
+                        # Вроде как неправильно работает
+    
+                for item in changed[::-1]: # начинаем с добавления наверх "более старых" новых сообщений
+                    self.ids.chats_container.remove_widget(item)
+                    self.ids.chats_container.add_widget(item, -1)
+        except:
+            logger.error(traceback.format_exc())
 
 
     def load_messages(self, caller = None, page=1, count=10, load_new = False):
@@ -458,6 +461,10 @@ class MessengerRoot(MDScreen):
             self.ids.screen_manager.get_screen("chat_screen").chat_title = title
             self.ids.screen_manager.get_screen("chat_screen").current_page = 1
             self.ids.screen_manager.current = "chat_screen"
+            for el in self.ids.chats_container.children:
+                if isinstance(el, MDLabel):
+                    self.ids.chats_container.remove_widget(el)
+
 
     def open_searcher(self, caller):
         if not [c for c in caller.parent.children if isinstance(c, SearchChatPane)]:
@@ -528,8 +535,8 @@ class SearchChatPane(MDBoxLayout):
     full_list = ListProperty()
 
     def search_chat_callback(self, caller, text):
-        if res:= [chat for chat in self.full_list
-                  if text.lower() in (chat.display_name + chat.message + str(chat.chat) + hex(chat.chat)).lower()]:
+        if res:= [chat for chat in self.full_list if isinstance(chat, ChatCard) and \
+                    text.lower() in (chat.display_name + chat.message + str(chat.chat) + hex(chat.chat)).lower()]:
             self.chats_container.clear_widgets()
             for chat in res:
                 self.chats_container.add_widget(chat)

@@ -1,1 +1,0 @@
-gcc -I ./libusb/include -L ./libusb/lib/gcc -O -Wall usbtest.coo -o usbtest.exe -lusb
