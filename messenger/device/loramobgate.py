@@ -49,7 +49,7 @@ if 'ANDROID_ARGUMENT' in environ: # <- equivalent
 						 Permission.INTERNET])
 	import usb4a.usb
 else:
-	import usb.core
+	import usb.core as uc
 	platform = pl.system().lower()
 
 def try_pickle(value):
@@ -437,10 +437,12 @@ class UsbConnection:
 #				backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb-1.0.dll")
 				import usb.backend.libusb0
 				backend = usb.backend.libusb0.get_backend(find_library=lambda x: "libusb0.dll")
-				self._usb = usb.core.find(backend = backend, idVendor=self._vid, idProduct=self._pid) # backend = backend
+				self._usb = uc.find(backend = backend, idVendor=self._vid, idProduct=self._pid) # backend = backend
 			case _:
-				self._usb = usb.core.find(idVendor=self._vid, idProduct=self._pid)
+				#import usb.core
+				self._usb = uc.find(idVendor=self._vid, idProduct=self._pid)
 		return self._usb != None
+		
 
 	# u.ENDPOINT_IN      device to host requests: Mega       -> PC   (e.g. retrieve message from buffer)
 	# u.ENDPOINT_OUT     host to device requests: PC Payload -> Mega (e.g. module command + args)
@@ -462,8 +464,8 @@ class UsbConnection:
 							u.CTRL_TYPE_VENDOR | u.CTRL_RECIPIENT_DEVICE | endp,
 										command, wValue, wIndex, data or 2048, 5000)
 				else:
-					raise usb.core.USBError
-			except usb.core.USBError:
+					raise uc.USBError
+			except uc.USBError:
 				sleep(1)
 				self.open_device()
 			except:
