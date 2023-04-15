@@ -24,7 +24,7 @@ ASSETS_CERTS = "./assets/certs"
 ASSETS_FONTS = "./assets/fonts"
 FONT = "Roboto-Regular-Emoji.ttf"
 DEFAULT_AVATAR = "anonymous.jpg"
-APP_VERSION = "0.9.2"
+APP_VERSION = "0.9.3"
 
 DEBUG = True
 

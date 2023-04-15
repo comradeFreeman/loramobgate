@@ -24,7 +24,7 @@ h11
 hiredis
 idna
 Jinja2
-jnius
+pyjnius
 Kivy
 kivymd
 MarkupSafe
@@ -43,6 +43,7 @@ ptyprocess
 pure-salsa20
 pyasn1
 pycparser
+pyinstaller
 pydantic
 Pygments
 python-dateutil
@@ -52,7 +53,7 @@ python-ulid
 pytz
 pytzdata
 pyusb
-redis
+redis==4.5.0
 redis-om
 redisearch
 rejson

@@ -144,7 +144,6 @@ git clone https://github.com/comradeFreeman/loramobgate.git
 cd loramobgate/messenger
 python3 -m venv venv
 source venv/bin/activate
-# Чтобы использовать только ПО Хоста:
 pip install Cython wheel
 pip install -r requirements.txt
 ```
@@ -168,3 +167,4 @@ Type "help", "copyright", "credits" or "license" for more information.
 ```sh
 python main.py
 ```
+> ВНИМАНИЕ! Для того, чтобы всё заработало на Windows, нужно вручную установить драйвер `libusb`! Для этого требуется запустить `messenger/zadig-2.4.exe`, выбрать из выпадающего списка `loramobgate`, чуть ниже в правом списке выбрать `libusb-win32` и нажать кнопку `Install Driver / Reinstall Driver`.

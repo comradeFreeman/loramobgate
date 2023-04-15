@@ -35,7 +35,7 @@ pubkeys = SqliteDict(settings.DB_DATA, tablename="pubkeys") #, autocommit=True)
 
 from sqlitedict import SqliteDict
 pubkeys = SqliteDict(settings.DB_DATA, tablename="pubkeys") #, autocommit=True)
-
+import platform as pl
 #from kivy.utils import platform
 platform = "unknown"
 
@@ -50,9 +50,7 @@ if 'ANDROID_ARGUMENT' in environ: # <- equivalent
 	import usb4a.usb
 else:
 	import usb.core
-
-
-
+	platform = pl.system().lower()
 
 def try_pickle(value):
 	try:
@@ -425,16 +423,23 @@ class UsbConnection:
 		self.open_device()
 
 	def open_device(self) -> bool:
-		if platform == "android":
-			if candidates:= [device for device in usb4a.usb.get_usb_device_list() if
-							 device.getVendorId() == self._vid and device.getProductId() == self._pid]:
-				device = usb4a.usb.get_usb_device(candidates[0].getDeviceName())
-				if not usb4a.usb.has_usb_permission(device):
-					usb4a.usb.request_usb_permission(device)
-					self.open_device()
-				self._usb = usb4a.usb.get_usb_manager().openDevice(device)
-		else:
-			self._usb = usb.core.find(idVendor=self._vid, idProduct=self._pid)
+		match(platform):
+			case "android":
+				if candidates:= [device for device in usb4a.usb.get_usb_device_list() if
+                                 device.getVendorId() == self._vid and device.getProductId() == self._pid]:
+					device = usb4a.usb.get_usb_device(candidates[0].getDeviceName())
+					if not usb4a.usb.has_usb_permission(device):
+						usb4a.usb.request_usb_permission(device)
+						self.open_device()
+					self._usb = usb4a.usb.get_usb_manager().openDevice(device)
+			case "windows":
+#				import usb.backend.libusb1
+#				backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb-1.0.dll")
+				import usb.backend.libusb0
+				backend = usb.backend.libusb0.get_backend(find_library=lambda x: "libusb0.dll")
+				self._usb = usb.core.find(backend = backend, idVendor=self._vid, idProduct=self._pid) # backend = backend
+			case _:
+				self._usb = usb.core.find(idVendor=self._vid, idProduct=self._pid)
 		return self._usb != None
 
 	# u.ENDPOINT_IN      device to host requests: Mega       -> PC   (e.g. retrieve message from buffer)

@@ -228,6 +228,8 @@ class MessengerRoot(MDScreen):
                     self.ids.chats_container.add_widget(MDLabel(text = "There is nothing here yet...", halign = "center", valign = "center"))
             else:
                 changed = []
+                if no_mess:= [el for el in self.ids.chats_container.children if isinstance(el, MDLabel)]:
+                    self.ids.chats_container.remove_widget(no_mess[0])
                 for chat_db in chats_db:
                     if chat_ui:= [el for el in self.ids.chats_container.children if isinstance(el, ChatCard) and el.chat == chat_db.id]:
                         chat_ui = chat_ui[0]
@@ -241,7 +243,8 @@ class MessengerRoot(MDScreen):
                             changed.append(chat_ui)
                     else:
                         pos = -1 - len([chat for chat in self.ids.chats_container.children
-                                        if chat_db.last_message_id and chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
+                                        if isinstance(chat, ChatCard) and chat_db.last_message_id\
+                                        and chat.last_message_id and (chat.last_message_id > chat_db.last_message_id)])
                         last_message: Message = Message.get_or_none(Message.id == chat_db.last_message_id)
                         self.ids.chats_container.add_widget(ChatCard(
                             chat = chat_db.id,
@@ -656,6 +659,16 @@ class MessengerApp(MDApp):
             if int(value) <= 0 or int(value) > 120:
                 value = getattr(settings, key)
         config.set(section, key, str(value))
+        #if not os.path.exists("messenger.ini"):
+            ## Создаем новый StringIO объект
+            #new_config_file = StringIO()
+            ## Записываем измененный ConfigParser в новый файл
+            #config.write(new_config_file)
+            ## Переводим указатель записи в начало файла
+            #new_config_file.seek(0)
+            ## Сохраняем новый файл как ресурс в пакете
+            #pkg_resources.resource_stream(__name__, "messenger.ini").write(new_config_file.read().encode())
+        #else:
         config.write()
 
 
@@ -721,20 +734,10 @@ class MessengerApp(MDApp):
                         m = Message.create(sender = packet.src_addr, recipient = packet.dst_addr, date_sent = message.date,
                                            forwarded_from = message.forwarded_from, reply_to = reply_to, chat = chat,
                                            message_hash = "")
-                        #if not packet.is_fragmented:
                         c = Content.create(message = m, content_type = packet.content_type, content = message.content.encode('utf-8'))
-                        # else:
-                        #     if not (c:= m.content.get_or_none()):
-                        #         c = Content.create(message = m, content_type = packet.content_type, content = pickle.dumps([0]*packet.fragm_c), ready = False)
-                        #     l = pickle.loads(c.content)
-                        #     l[packet.fragment] = message.content.encode('utf-8')
-                        #     c.content = pickle.dumps(l)
-                        #     if all([bool(fr) for fr in l]):
-                        #         c.ready = True
-                        #         c.content = b''.join(c.content)
                         m.save()
                         c.save()
-                        if m.recipient == self.dev_addr:
+                        if m.recipient in (self.dev_addr, settings.BROADCAST):
                             chat.unread += 1
                         chat.save()
 
